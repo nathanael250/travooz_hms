@@ -1,0 +1,508 @@
+{
+    "info": {
+        "name": "Travooz HMS - Booking Management API",
+        "description": "API collection for testing booking management endpoints",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:3001",
+            "type": "string"
+        },
+        {
+            "key": "authToken",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{authToken}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "Authentication",
+            "item": [
+                {
+                    "name": "Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"admin@travooz.com\",\n  \"password\": \"hashedpassword123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/auth/login",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "auth",
+                                "login"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Bookings",
+            "item": [
+                {
+                    "name": "Get All Bookings",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings?page=1&limit=10",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "pending",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Booking by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings/1",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings",
+                                "1"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create New Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"service_type\": \"homestay\",\n  \"user_id\": 1,\n  \"total_amount\": 250.00,\n  \"status\": \"pending\",\n  \"payment_status\": \"pending\",\n  \"booking_source\": \"website\",\n  \"special_requests\": \"Please prepare room for early arrival\",\n  \"guest_name\": \"NISHIMWE Noel\",\n  \"guest_email\": \"nishimwe.noel@email.com\",\n  \"guest_phone\": \"+250788123456\",\n  \"check_in_date\": \"2025-10-15\",\n  \"check_out_date\": \"2025-10-18\",\n  \"number_of_adults\": 2,\n  \"number_of_children\": 0\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Room Booking - NISHIMWE Noel",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"service_type\": \"room\",\n  \"user_id\": 1,\n  \"total_amount\": 320.00,\n  \"status\": \"confirmed\",\n  \"payment_status\": \"paid\",\n  \"booking_source\": \"website\",\n  \"booking_reference\": \"BK001NOEL\",\n  \"special_requests\": \"High floor room preferred, quiet area\",\n  \"room_booking\": {\n    \"inventory_id\": 1,\n    \"check_in_date\": \"2025-10-20\",\n    \"check_out_date\": \"2025-10-23\",\n    \"nights\": 3,\n    \"room_price_per_night\": 85.00,\n    \"total_room_amount\": 255.00,\n    \"homestay_id\": 1,\n    \"guest_name\": \"NISHIMWE Noel\",\n    \"guest_email\": \"nishimwe.noel@email.com\",\n    \"guest_phone\": \"+250788123456\",\n    \"guest_id_type\": \"passport\",\n    \"guest_id_number\": \"P12345678\",\n    \"number_of_adults\": 2,\n    \"number_of_children\": 1,\n    \"tax_amount\": 38.25,\n    \"service_charge\": 25.50,\n    \"final_amount\": 320.00,\n    \"deposit_amount\": 96.00,\n    \"deposit_paid\": true,\n    \"special_requests\": \"Extra bed for child, late arrival around 10 PM\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Room Booking - NIYO Nathanael",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"service_type\": \"homestay\",\n  \"user_id\": 1,\n  \"total_amount\": 450.00,\n  \"status\": \"pending\",\n  \"payment_status\": \"pending\",\n  \"booking_source\": \"phone\",\n  \"booking_reference\": \"BK002NIYO\",\n  \"special_requests\": \"Business traveler, need WiFi and workspace\",\n  \"room_booking\": {\n    \"inventory_id\": 2,\n    \"check_in_date\": \"2025-10-25\",\n    \"check_out_date\": \"2025-10-28\",\n    \"nights\": 3,\n    \"room_price_per_night\": 120.00,\n    \"total_room_amount\": 360.00,\n    \"homestay_id\": 2,\n    \"guest_name\": \"NIYO Nathanael\",\n    \"guest_email\": \"niyo.nathanael@email.com\",\n    \"guest_phone\": \"+250788654321\",\n    \"guest_id_type\": \"national_id\",\n    \"guest_id_number\": \"1199712345678901\",\n    \"number_of_adults\": 1,\n    \"number_of_children\": 0,\n    \"tax_amount\": 54.00,\n    \"service_charge\": 36.00,\n    \"final_amount\": 450.00,\n    \"deposit_amount\": 135.00,\n    \"deposit_paid\": false,\n    \"special_requests\": \"Need early check-in at 12 PM, traveling for business\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Booking Status",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"status\": \"confirmed\",\n  \"payment_status\": \"paid\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings/1",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings",
+                                "1"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Check-in Guest",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings/1/checkin",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings",
+                                "1",
+                                "checkin"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Check-out Guest",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings/1/checkout",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings",
+                                "1",
+                                "checkout"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Filter Bookings by Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/bookings?status=confirmed&page=1&limit=5",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "bookings"
+                            ],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "confirmed"
+                                },
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "5"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Room Booking",
+            "item": [
+                {
+                    "name": "Check Room Availability",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/room-booking/availability?checkIn=2024-12-01&checkOut=2024-12-05&roomTypeId=1&guestCount=2",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "room-booking",
+                                "availability"
+                            ],
+                            "query": [
+                                {
+                                    "key": "checkIn",
+                                    "value": "2024-12-01"
+                                },
+                                {
+                                    "key": "checkOut",
+                                    "value": "2024-12-05"
+                                },
+                                {
+                                    "key": "roomTypeId",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "guestCount",
+                                    "value": "2"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Complete Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"guestDetails\": {\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+250788123456\",\n    \"idType\": \"passport\",\n    \"idNumber\": \"AB123456\",\n    \"nationality\": \"USA\",\n    \"dateOfBirth\": \"1985-05-15\"\n  },\n  \"bookingDetails\": {\n    \"checkInDate\": \"2024-12-01\",\n    \"checkOutDate\": \"2024-12-05\",\n    \"roomTypeId\": 1,\n    \"numberOfGuests\": 2,\n    \"specialRequests\": \"Late check-in requested\"\n  },\n  \"paymentDetails\": {\n    \"paymentMethod\": \"credit_card\",\n    \"cardNumber\": \"4111111111111111\",\n    \"expiryMonth\": \"12\",\n    \"expiryYear\": \"2025\",\n    \"cvv\": \"123\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/room-booking/create-complete-booking",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "room-booking",
+                                "create-complete-booking"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Process Check-in",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"roomNumber\": \"101\",\n  \"actualCheckInTime\": \"2024-12-01T15:30:00Z\",\n  \"notes\": \"Guest arrived on time, keys provided\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/room-booking/1/checkin",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "room-booking",
+                                "1",
+                                "checkin"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Process Check-out",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"actualCheckOutTime\": \"2024-12-05T11:00:00Z\",\n  \"additionalCharges\": [\n    {\n      \"description\": \"Minibar consumption\",\n      \"amount\": 25.50,\n      \"category\": \"food_beverage\"\n    }\n  ],\n  \"notes\": \"Guest checked out on time, no damages\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/room-booking/1/checkout",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "room-booking",
+                                "1",
+                                "checkout"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Booking Full Details",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/room-booking/1/full-details",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "room-booking",
+                                "1",
+                                "full-details"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Demo - NISHIMWE Noel Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"checkInDate\": \"2024-12-15\",\n  \"checkOutDate\": \"2024-12-18\",\n  \"roomTypeId\": 1,\n  \"numberOfGuests\": 1,\n  \"specialRequests\": \"Business traveler, quiet room preferred\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/room-booking/demo/nishimwe-booking",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "room-booking",
+                                "demo",
+                                "nishimwe-booking"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Demo - NIYO Nathanael Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"checkInDate\": \"2024-12-20\",\n  \"checkOutDate\": \"2024-12-23\",\n  \"roomTypeId\": 2,\n  \"numberOfGuests\": 2,\n  \"specialRequests\": \"Anniversary celebration, flowers and champagne\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/room-booking/demo/niyo-booking",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "room-booking",
+                                "demo",
+                                "niyo-booking"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,212 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    STAY VIEW TEST DATA - QUICK REFERENCE                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📦 FILES CREATED
+═══════════════════════════════════════════════════════════════════════════════
+
+1. SQL Data File:
+   📄 backend/config/stay_view_test_data.sql (11 KB)
+   → Contains all test data (room types, rooms, bookings)
+
+2. Loader Script:
+   🔧 backend/config/load_test_data.sh (executable)
+   → Interactive script to load data into database
+
+3. Documentation:
+   📖 backend/config/STAY_VIEW_TEST_DATA_README.md (6.3 KB)
+   → Comprehensive guide with all details
+   
+   📖 backend/config/TEST_DATA_STRUCTURE.md (11 KB)
+   → Visual data structure and relationships
+   
+   📖 QUICK_START_STAY_VIEW.md (root directory)
+   → Quick start guide for testing
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 QUICK START (3 STEPS)
+═══════════════════════════════════════════════════════════════════════════════
+
+Step 1: Load Test Data
+─────────────────────────────────────────────────────────────────────────────
+cd /home/nathanadmin/Projects/MOPAS/travooz_hms/backend/config
+./load_test_data.sh
+
+OR directly:
+mysql -u root -p travooz_hms < stay_view_test_data.sql
+
+Step 2: Start Servers
+─────────────────────────────────────────────────────────────────────────────
+Terminal 1 (Backend):
+cd /home/nathanadmin/Projects/MOPAS/travooz_hms/backend
+npm start
+
+Terminal 2 (Frontend):
+cd /home/nathanadmin/Projects/MOPAS/travooz_hms/frontend
+npm start
+
+Step 3: Access Stay View
+─────────────────────────────────────────────────────────────────────────────
+1. Open: http://localhost:3000
+2. Login as vendor (vendor_id = 2)
+3. Go to: http://localhost:3000/hotels/homestays/1
+4. Click blue "Stay View" button
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 TEST DATA OVERVIEW
+═══════════════════════════════════════════════════════════════════════════════
+
+Homestay:        Urugero Hotel (ID: 1)
+Room Types:      5 types (Standard to Presidential)
+Physical Rooms:  12 rooms (Room 101 to Room 501)
+Bookings:        16 bookings (ID: 100-115)
+Date Range:      25 days (12 days past → 14 days future)
+
+Booking Status Distribution:
+  ✓ Confirmed:  10 bookings (62.5%) - Green bars
+  ⏳ Pending:    2 bookings (12.5%) - Yellow bars
+  ✓ Completed:  2 bookings (12.5%) - Blue bars
+  ✗ Cancelled:  2 bookings (12.5%) - Red bars
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🏨 ROOM LAYOUT
+═══════════════════════════════════════════════════════════════════════════════
+
+Floor 5: Room 501 (Presidential Suite)    - 250,000 RWF/night
+Floor 4: Room 401, 402 (Executive Suites) - 150,000 RWF/night
+Floor 3: Room 301, 302 (Family Suites)    - 120,000 RWF/night
+Floor 2: Room 201, 202, 203 (Deluxe)      -  75,000 RWF/night
+Floor 1: Room 101-104 (Standard)          -  50,000 RWF/night
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📅 SAMPLE BOOKINGS (What You'll See)
+═══════════════════════════════════════════════════════════════════════════════
+
+Room 101: [OCCUPIED NOW] John Smith (Yesterday → +2 days)
+          [CONFIRMED] Christopher Martin (+10 days → +13 days)
+
+Room 201: [OCCUPIED NOW] Sarah Johnson (Today → +3 days)
+
+Room 402: [CONFIRMED] Michael & Emma Brown (Tomorrow → +3 days)
+          💑 Honeymoon package
+
+Room 301: [CONFIRMED] Anderson Family (+3 days → +4 days)
+          👨‍👩‍👧‍👦 Family with children
+
+Room 202: [PENDING] Lisa Martinez (+5 days → +7 days)
+          🥗 Vegetarian breakfast
+
+Room 501: [CANCELLED] William Garcia (-3 days → -1 day)
+          [CONFIRMED] Dr. Richard White (+7 days → +9 days)
+          ⭐ VIP guest
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎨 COLOR CODING
+═══════════════════════════════════════════════════════════════════════════════
+
+🟢 Green   = Confirmed bookings (paid, active)
+🟡 Yellow  = Pending bookings (awaiting confirmation)
+🔵 Blue    = Completed bookings (past stays)
+🔴 Red     = Cancelled bookings (refunded)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ VERIFICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Check if data loaded successfully:
+
+mysql -u root -p travooz_hms -e "
+SELECT COUNT(*) as total_bookings 
+FROM bookings 
+WHERE booking_id BETWEEN 100 AND 115;"
+
+Expected result: 16 bookings
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🧪 TEST SCENARIOS
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ View current occupancy (2 rooms occupied today)
+✓ Check upcoming bookings (navigate with Next button)
+✓ Click on booking bars to see details
+✓ Test different statuses (pending, confirmed, cancelled)
+✓ Navigate timeline (Previous/Next/Today buttons)
+✓ View special requests in booking details
+✓ Check overlapping bookings on different rooms
+✓ Verify sequential bookings on same room
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🗑️ CLEANUP (Remove Test Data)
+═══════════════════════════════════════════════════════════════════════════════
+
+mysql -u root -p travooz_hms -e "
+DELETE FROM room_bookings WHERE booking_id BETWEEN 100 AND 115;
+DELETE FROM bookings WHERE booking_id BETWEEN 100 AND 115;
+DELETE FROM room_inventory WHERE inventory_id BETWEEN 1 AND 12;
+DELETE FROM room_types WHERE room_type_id BETWEEN 1 AND 5;"
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📞 TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+Issue: Duplicate key errors
+→ Data already exists. Run cleanup first or modify IDs in SQL file.
+
+Issue: No bookings showing
+→ Check: 1) Data loaded? 2) Logged in as vendor_id=2? 3) API working?
+
+Issue: Stay View button not visible
+→ Clear cache, verify you're on homestay details page.
+
+Issue: API errors
+→ Check backend logs, verify endpoint: /api/homestays/1/stay-view
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📚 DETAILED DOCUMENTATION
+═══════════════════════════════════════════════════════════════════════════════
+
+For more details, see:
+
+1. QUICK_START_STAY_VIEW.md (root directory)
+   → Step-by-step testing guide
+
+2. backend/config/STAY_VIEW_TEST_DATA_README.md
+   → Complete documentation with all details
+
+3. backend/config/TEST_DATA_STRUCTURE.md
+   → Visual data structure and SQL queries
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💡 TIPS
+═══════════════════════════════════════════════════════════════════════════════
+
+• All dates are relative to CURDATE() - data stays relevant
+• Guest information is realistic but fictional
+• Booking references: TRV-000100 to TRV-000115
+• Total revenue: 2,885,000 RWF across all bookings
+• Occupancy rate varies by date range
+• Special requests included for testing detail views
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎉 READY TO TEST!
+═══════════════════════════════════════════════════════════════════════════════
+
+Your Stay View feature is ready with comprehensive test data!
+
+Start with: cd backend/config && ./load_test_data.sh
+
+═══════════════════════════════════════════════════════════════════════════════
+Created: January 2025 | Travooz HMS - Stay View Feature
+═══════════════════════════════════════════════════════════════════════════════

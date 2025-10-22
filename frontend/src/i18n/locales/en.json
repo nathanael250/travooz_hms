@@ -1,0 +1,56 @@
+{
+  "dashboard": {
+    "title": "Hotel Management Dashboard",
+    "welcome": "Welcome to Travooz HMS",
+    "overview": "Overview",
+    "quickStats": "Quick Statistics",
+    "recentActivities": "Recent Activities",
+    "systemStatus": "System Status"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "reservations": "Reservations",
+    "rooms": "Rooms",
+    "guests": "Guests",
+    "billing": "Billing",
+    "reports": "Reports",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "stats": {
+    "totalRooms": "Total Rooms",
+    "occupiedRooms": "Occupied Rooms",
+    "availableRooms": "Available Rooms",
+    "pendingCheckouts": "Pending Checkouts",
+    "totalGuests": "Total Guests",
+    "revenue": "Today's Revenue",
+    "occupancyRate": "Occupancy Rate"
+  },
+  "common": {
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "noData": "No data available",
+    "error": "An error occurred",
+    "success": "Operation successful"
+  },
+  "user": {
+    "profile": "Profile",
+    "account": "Account",
+    "preferences": "Preferences",
+    "changePassword": "Change Password",
+    "language": "Language"
+  },
+  "languages": {
+    "en": "English",
+    "fr": "Français",
+    "rw": "Kinyarwanda"
+  }
+}

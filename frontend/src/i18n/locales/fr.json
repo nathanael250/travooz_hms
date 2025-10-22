@@ -1,0 +1,56 @@
+{
+  "dashboard": {
+    "title": "Tableau de Bord de Gestion Hôtelière",
+    "welcome": "Bienvenue sur Travooz HMS",
+    "overview": "Aperçu",
+    "quickStats": "Statistiques Rapides",
+    "recentActivities": "Activités Récentes",
+    "systemStatus": "État du Système"
+  },
+  "navigation": {
+    "dashboard": "Tableau de Bord",
+    "reservations": "Réservations",
+    "rooms": "Chambres",
+    "guests": "Clients",
+    "billing": "Facturation",
+    "reports": "Rapports",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "stats": {
+    "totalRooms": "Total des Chambres",
+    "occupiedRooms": "Chambres Occupées",
+    "availableRooms": "Chambres Disponibles",
+    "pendingCheckouts": "Départs Pending",
+    "totalGuests": "Total des Clients",
+    "revenue": "Revenus d'Aujourd'hui",
+    "occupancyRate": "Taux d'Occupation"
+  },
+  "common": {
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "add": "Ajouter",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "loading": "Chargement...",
+    "noData": "Aucune donnée disponible",
+    "error": "Une erreur s'est produite",
+    "success": "Opération réussie"
+  },
+  "user": {
+    "profile": "Profil",
+    "account": "Compte",
+    "preferences": "Préférences",
+    "changePassword": "Changer le Mot de Passe",
+    "language": "Langue"
+  },
+  "languages": {
+    "en": "English",
+    "fr": "Français",
+    "rw": "Kinyarwanda"
+  }
+}

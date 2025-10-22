@@ -1,0 +1,56 @@
+{
+  "dashboard": {
+    "title": "Ibikoresho byo Gucunga Hoteri",
+    "welcome": "Murakaza neza kuri Travooz HMS",
+    "overview": "Incamake",
+    "quickStats": "Imibare Yihuse",
+    "recentActivities": "Ibikorwa Biheruka",
+    "systemStatus": "Uko Sisitemu Imeze"
+  },
+  "navigation": {
+    "dashboard": "Ibikoresho",
+    "reservations": "Amabwiriza",
+    "rooms": "Ibyumba",
+    "guests": "Abashyitsi",
+    "billing": "Kwishyura",
+    "reports": "Raporo",
+    "settings": "Amategeko",
+    "logout": "Gusohoka"
+  },
+  "stats": {
+    "totalRooms": "Ibyumba Byose",
+    "occupiedRooms": "Ibyumba Bituwe",
+    "availableRooms": "Ibyumba Biboneka",
+    "pendingCheckouts": "Abasohoka Bategereje",
+    "totalGuests": "Abashyitsi Bose",
+    "revenue": "Amafaranga y'Uyu Munsi",
+    "occupancyRate": "Igipimo cy'Ubuzimwe"
+  },
+  "common": {
+    "search": "Gushakisha",
+    "filter": "Gutoranya",
+    "export": "Gusohora",
+    "add": "Kongeramo",
+    "edit": "Guhindura",
+    "delete": "Gusiba",
+    "save": "Kubika",
+    "cancel": "Guhagarika",
+    "confirm": "Kwemeza",
+    "loading": "Birakura...",
+    "noData": "Nta makuru aboneka",
+    "error": "Habaye ikosa",
+    "success": "Byagenze neza"
+  },
+  "user": {
+    "profile": "Umwirondoro",
+    "account": "Konti",
+    "preferences": "Amahitamo",
+    "changePassword": "Guhindura Ijambo Ry'ibanga",
+    "language": "Ururimi"
+  },
+  "languages": {
+    "en": "Icyongereza",
+    "fr": "Igifaransa",
+    "rw": "Ikinyarwanda"
+  }
+}

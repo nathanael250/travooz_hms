@@ -1,0 +1,627 @@
+{
+  "navigation": {
+    "mainMenu": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "icon": "LayoutDashboard",
+        "path": "/dashboard",
+        "roles": ["super_admin", "admin", "hotel_manager", "front_desk"],
+        "implemented": true
+      },
+      {
+        "id": "hotel-management",
+        "label": "Hotel Management",
+        "icon": "Building2",
+        "roles": ["super_admin", "admin", "hotel_manager"],
+        "implemented": true,
+        "submenus": [
+          {
+            "id": "homestays",
+            "label": "Homestays",
+            "path": "/hotels/homestays",
+            "description": "Manage homestay properties",
+            "implemented": true
+          },
+          {
+            "id": "room-types",
+            "label": "Room Types",
+            "path": "/hotels/room-types",
+            "description": "Define room categories and amenities",
+            "implemented": true
+          },
+          {
+            "id": "room-inventory",
+            "label": "Room Inventory",
+            "path": "/hotels/room-inventory",
+            "description": "Manage physical room units",
+            "implemented": true
+          },
+          {
+            "id": "room-images",
+            "label": "Room Images",
+            "path": "/hotels/room-images",
+            "description": "Upload and manage room photos",
+            "implemented": true
+          },
+          {
+            "id": "room-rates",
+            "label": "Room Rates",
+            "path": "/hotels/room-rates",
+            "description": "Set pricing and seasonal rates",
+            "implemented": true
+          },
+          {
+            "id": "room-availability",
+            "label": "Room Availability",
+            "path": "/hotels/room-availability",
+            "description": "Manage availability calendar",
+            "implemented": true
+          },
+          {
+            "id": "room-status-log",
+            "label": "Room Status Log",
+            "path": "/hotels/room-status-log",
+            "description": "Track room status changes",
+            "implemented": true
+          },
+          {
+            "id": "room-assignments",
+            "label": "Room Assignments",
+            "path": "/hotels/room-assignments",
+            "description": "Assign rooms to bookings",
+            "implemented": true
+          }
+        ]
+      },
+      {
+        "id": "booking-management",
+        "label": "Booking Management",
+        "icon": "Calendar",
+        "roles": ["super_admin", "admin", "hotel_manager", "front_desk"],
+        "implemented": true,
+        "submenus": [
+          {
+            "id": "bookings",
+            "label": "All Bookings",
+            "path": "/bookings",
+            "description": "View and manage all reservations",
+            "implemented": true
+          },
+          {
+            "id": "room-bookings",
+            "label": "Room Bookings",
+            "path": "/bookings/room-bookings",
+            "description": "Single room reservations",
+            "implemented": true
+          },
+          {
+            "id": "multi-room-bookings",
+            "label": "Multi-Room Bookings",
+            "path": "/bookings/multi-room-bookings",
+            "description": "Group and multi-room reservations",
+            "implemented": true
+          },
+          {
+            "id": "booking-guests",
+            "label": "Booking Guests",
+            "path": "/bookings/booking-guests",
+            "description": "Manage guest information per booking",
+            "implemented": true
+          },
+          {
+            "id": "booking-modifications",
+            "label": "Booking Modifications",
+            "path": "/bookings/booking-modifications",
+            "description": "Track booking changes and amendments",
+            "implemented": true
+          },
+          {
+            "id": "booking-charges",
+            "label": "Booking Charges",
+            "path": "/bookings/booking-charges",
+            "description": "Additional charges and fees",
+            "implemented": true
+          },
+          {
+            "id": "external-bookings",
+            "label": "External Bookings",
+            "path": "/bookings/external-bookings",
+            "description": "OTA and third-party reservations",
+            "implemented": true
+          }
+        ]
+      },
+      {
+        "id": "guest-management",
+        "label": "Guest Management",
+        "icon": "Users",
+        "roles": ["super_admin", "admin", "hotel_manager", "front_desk"],
+        "implemented": true,
+        "submenus": [
+          {
+            "id": "guest-profiles",
+            "label": "Guest Profiles",
+            "path": "/guests/profiles",
+            "description": "Guest database and history",
+            "implemented": true
+          },
+          {
+            "id": "guest-requests",
+            "label": "Guest Requests",
+            "path": "/guests/requests",
+            "description": "Service requests and special needs",
+            "implemented": true
+          },
+          {
+            "id": "guest-complaints",
+            "label": "Guest Complaints",
+            "path": "/guests/complaints",
+            "description": "Log and resolve guest issues",
+            "implemented": true
+          },
+          {
+            "id": "guest-reviews",
+            "label": "Guest Reviews",
+            "path": "/guests/reviews",
+            "description": "Guest feedback and ratings",
+            "implemented": true
+          },
+          {
+            "id": "user-favorites",
+            "label": "User Favorites",
+            "path": "/guests/favorites",
+            "description": "Guest preferences and favorites",
+            "implemented": true
+          }
+        ]
+      },
+      {
+        "id": "housekeeping",
+        "label": "Housekeeping",
+        "icon": "Sparkles",
+        "roles": ["super_admin", "admin", "hotel_manager", "housekeeping"],
+        "implemented": true,
+        "submenus": [
+          {
+            "id": "housekeeping-tasks",
+            "label": "Housekeeping Tasks",
+            "path": "/housekeeping/tasks",
+            "description": "Room cleaning and maintenance tasks",
+            "implemented": true
+          }
+        ]
+      },
+      {
+        "id": "maintenance",
+        "label": "Maintenance",
+        "icon": "Wrench",
+        "roles": ["super_admin", "admin", "hotel_manager", "maintenance"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "maintenance-requests",
+            "label": "Maintenance Requests",
+            "path": "/maintenance/requests",
+            "description": "Submit and track repair requests",
+            "implemented": false
+          },
+          {
+            "id": "maintenance-assets",
+            "label": "Asset Management",
+            "path": "/maintenance/assets",
+            "description": "Track property assets and equipment",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "restaurant",
+        "label": "Restaurant & Kitchen",
+        "icon": "UtensilsCrossed",
+        "roles": ["super_admin", "admin", "hotel_manager", "restaurant_staff"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "restaurant-tables",
+            "label": "Restaurant Tables",
+            "path": "/restaurant/tables",
+            "description": "Manage dining tables",
+            "implemented": false
+          },
+          {
+            "id": "menu-management",
+            "label": "Menu Management",
+            "path": "/restaurant/menu",
+            "description": "Create and update menu items",
+            "implemented": false
+          },
+          {
+            "id": "restaurant-orders",
+            "label": "Restaurant Orders",
+            "path": "/restaurant/orders",
+            "description": "Manage food and beverage orders",
+            "implemented": false
+          },
+          {
+            "id": "order-items",
+            "label": "Order Items",
+            "path": "/restaurant/order-items",
+            "description": "View order details",
+            "implemented": false
+          },
+          {
+            "id": "kitchen-queue",
+            "label": "Kitchen Queue",
+            "path": "/restaurant/kitchen-queue",
+            "description": "Track order preparation",
+            "implemented": false
+          },
+          {
+            "id": "order-delivery",
+            "label": "Order Delivery",
+            "path": "/restaurant/delivery",
+            "description": "Manage room service and delivery",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "laundry",
+        "label": "Laundry Services",
+        "icon": "Shirt",
+        "roles": ["super_admin", "admin", "hotel_manager", "laundry_staff"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "laundry-requests",
+            "label": "Laundry Requests",
+            "path": "/laundry/requests",
+            "description": "Manage laundry pickup and delivery",
+            "implemented": false
+          },
+          {
+            "id": "laundry-items",
+            "label": "Laundry Items",
+            "path": "/laundry/items",
+            "description": "Track individual garments",
+            "implemented": false
+          },
+          {
+            "id": "laundry-pricing",
+            "label": "Laundry Pricing",
+            "path": "/laundry/pricing",
+            "description": "Set service prices",
+            "implemented": false
+          },
+          {
+            "id": "laundry-status-log",
+            "label": "Status Log",
+            "path": "/laundry/status-log",
+            "description": "Track laundry progress",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "inventory",
+        "label": "Inventory Management",
+        "icon": "Package",
+        "roles": ["super_admin", "admin", "hotel_manager", "inventory_manager"],
+        "implemented": true,
+        "submenus": [
+          {
+            "id": "stock-items",
+            "label": "Stock Items",
+            "path": "/inventory/stock-items",
+            "description": "Manage inventory items",
+            "implemented": false
+          },
+          {
+            "id": "stock-movements",
+            "label": "Stock Movements",
+            "path": "/inventory/stock-movements",
+            "description": "Track purchases and usage",
+            "implemented": false
+          },
+          {
+            "id": "stock-usage",
+            "label": "Stock Usage Logs",
+            "path": "/inventory/stock-usage",
+            "description": "Monitor consumption by department",
+            "implemented": false
+          },
+          {
+            "id": "suppliers",
+            "label": "Suppliers",
+            "path": "/inventory/suppliers",
+            "description": "Manage vendor information",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "billing",
+        "label": "Billing & Payments",
+        "icon": "CreditCard",
+        "roles": ["super_admin", "admin", "hotel_manager", "accountant"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "invoices",
+            "label": "Invoices",
+            "path": "/billing/invoices",
+            "description": "Generate and manage invoices",
+            "implemented": false
+          },
+          {
+            "id": "invoice-items",
+            "label": "Invoice Items",
+            "path": "/billing/invoice-items",
+            "description": "View invoice line items",
+            "implemented": false
+          },
+          {
+            "id": "payments",
+            "label": "Payment Transactions",
+            "path": "/billing/payments",
+            "description": "Record and track payments",
+            "implemented": false
+          },
+          {
+            "id": "money-transactions",
+            "label": "Money Transactions",
+            "path": "/billing/money-transactions",
+            "description": "Internal financial transfers",
+            "implemented": false
+          },
+          {
+            "id": "tax-configuration",
+            "label": "Tax Configuration",
+            "path": "/billing/tax-configuration",
+            "description": "Set up tax rules",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "staff",
+        "label": "Staff Management",
+        "icon": "UserCog",
+        "roles": ["super_admin", "admin", "hotel_manager"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "staff-profiles",
+            "label": "Staff Profiles",
+            "path": "/staff/profiles",
+            "description": "Manage employee information",
+            "implemented": false
+          },
+          {
+            "id": "staff-roles",
+            "label": "Staff Roles",
+            "path": "/staff/roles",
+            "description": "Define roles and permissions",
+            "implemented": false
+          },
+          {
+            "id": "staff-schedules",
+            "label": "Staff Schedules",
+            "path": "/staff/schedules",
+            "description": "Create work shifts",
+            "implemented": false
+          },
+          {
+            "id": "staff-activity-logs",
+            "label": "Activity Logs",
+            "path": "/staff/activity-logs",
+            "description": "Track staff actions",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "reports",
+        "label": "Reports & Analytics",
+        "icon": "BarChart3",
+        "roles": ["super_admin", "admin", "hotel_manager"],
+        "implemented": true,
+        "submenus": [
+          {
+            "id": "financial-reports",
+            "label": "Financial Reports",
+            "path": "/reports/financial",
+            "description": "Revenue and expense analysis",
+            "implemented": false
+          },
+          {
+            "id": "occupancy-reports",
+            "label": "Occupancy Reports",
+            "path": "/reports/occupancy",
+            "description": "Room utilization metrics",
+            "implemented": false
+          },
+          {
+            "id": "booking-summary",
+            "label": "Booking Summary",
+            "path": "/reports/booking-summary",
+            "description": "Reservation trends and patterns",
+            "implemented": false
+          },
+          {
+            "id": "room-availability-summary",
+            "label": "Availability Summary",
+            "path": "/reports/availability-summary",
+            "description": "Calendar view of room availability",
+            "implemented": false
+          },
+          {
+            "id": "report-templates",
+            "label": "Report Templates",
+            "path": "/reports/templates",
+            "description": "Save custom report formats",
+            "implemented": false
+          },
+          {
+            "id": "report-exports",
+            "label": "Report Exports",
+            "path": "/reports/exports",
+            "description": "Download reports in various formats",
+            "implemented": false
+          },
+          {
+            "id": "report-logs",
+            "label": "Report Logs",
+            "path": "/reports/logs",
+            "description": "Track report generation history",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "monitoring",
+        "label": "System Monitoring",
+        "icon": "Activity",
+        "roles": ["super_admin", "admin"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "front-desk-logs",
+            "label": "Front Desk Logs",
+            "path": "/monitoring/front-desk-logs",
+            "description": "Check-in/out activity",
+            "implemented": true
+          },
+          {
+            "id": "audit-logs",
+            "label": "Audit Logs",
+            "path": "/monitoring/audit-logs",
+            "description": "System-wide action tracking",
+            "implemented": false
+          },
+          {
+            "id": "notifications",
+            "label": "Notifications",
+            "path": "/monitoring/notifications",
+            "description": "System alerts and messages",
+            "implemented": false
+          },
+          {
+            "id": "system-alerts",
+            "label": "System Alerts",
+            "path": "/monitoring/system-alerts",
+            "description": "Critical system notifications",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "users",
+        "label": "User & Access Control",
+        "icon": "Shield",
+        "roles": ["super_admin", "admin"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "users",
+            "label": "Users",
+            "path": "/users/list",
+            "description": "Manage user accounts",
+            "implemented": false
+          },
+          {
+            "id": "user-sessions",
+            "label": "User Sessions",
+            "path": "/users/sessions",
+            "description": "Track active logins",
+            "implemented": false
+          },
+          {
+            "id": "otp-verification",
+            "label": "OTP Verification",
+            "path": "/users/otp-verification",
+            "description": "Two-factor authentication",
+            "implemented": false
+          },
+          {
+            "id": "hms-users",
+            "label": "HMS Users",
+            "path": "/users/hms-users",
+            "description": "Link users to homestays",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "ota",
+        "label": "OTA & Integration",
+        "icon": "Globe",
+        "roles": ["super_admin", "admin", "hotel_manager"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "ota-mappings",
+            "label": "OTA Mappings",
+            "path": "/ota/mappings",
+            "description": "Link rooms to OTA platforms",
+            "implemented": false
+          },
+          {
+            "id": "rate-sync-logs",
+            "label": "Rate Sync Logs",
+            "path": "/ota/rate-sync-logs",
+            "description": "Monitor pricing synchronization",
+            "implemented": false
+          },
+          {
+            "id": "ota-configuration",
+            "label": "OTA Configuration",
+            "path": "/ota/configuration",
+            "description": "Set up OTA connections",
+            "implemented": false
+          }
+        ]
+      },
+      {
+        "id": "setup",
+        "label": "Setup & Configuration",
+        "icon": "Settings",
+        "roles": ["super_admin", "admin"],
+        "implemented": false,
+        "submenus": [
+          {
+            "id": "categories",
+            "label": "Categories",
+            "path": "/setup/categories",
+            "description": "Define service categories",
+            "implemented": false
+          },
+          {
+            "id": "locations",
+            "label": "Locations",
+            "path": "/setup/locations",
+            "description": "Manage geographic locations",
+            "implemented": false
+          },
+          {
+            "id": "system-settings",
+            "label": "System Settings",
+            "path": "/setup/system-settings",
+            "description": "Configure system-wide settings",
+            "implemented": false
+          }
+        ]
+      }
+    ]
+  },
+  "statistics": {
+    "totalModules": 15,
+    "implementedModules": 4,
+    "remainingModules": 11,
+    "totalSubmenus": 89,
+    "implementedSubmenus": 28,
+    "remainingSubmenus": 61,
+    "completionPercentage": 27
+  }
+}

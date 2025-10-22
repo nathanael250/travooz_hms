@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql:*)",
+      "Bash(TOKEN='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywiZW1haWwiOiJhZG1pbkBnbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NjA0MjAxOTEsImV4cCI6MTc2MDUwNjU5MX0.52fd_8wri2dhwgJm-Ju4CQb0qp3cD2lV4A8bCgfUaFs')",
+      "Bash(curl -s -X GET \"http://localhost:3001/api/bookings?page=1&limit=10\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(curl -s http://localhost:3001/api/homestays -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywiZW1haWwiOiJhZG1pbkBnbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NjA0MjAxOTEsImV4cCI6MTc2MDUwNjU5MX0.52fd_8wri2dhwgJm-Ju4CQb0qp3cD2lV4A8bCgfUaFs\")",
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
