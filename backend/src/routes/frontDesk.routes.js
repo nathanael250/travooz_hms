@@ -83,9 +83,6 @@ router.get('/upcoming-arrivals', authMiddleware, async (req, res) => {
       INNER JOIN room_inventory ri_booked ON rb.inventory_id = ri_booked.inventory_id
       INNER JOIN room_types rt ON ri_booked.room_type_id = rt.room_type_id
       INNER JOIN homestays h ON rb.homestay_id = h.homestay_id
-      LEFT JOIN room_assignments ra ON b.booking_id = ra.booking_id 
-        AND ra.status IN ('assigned', 'checked_in')
-      LEFT JOIN room_inventory ri ON ra.inventory_id = ri.inventory_id
       WHERE ${dateCondition}
         ${statusCondition}
       ORDER BY rb.check_in_date ASC, b.booking_id ASC
@@ -217,11 +214,11 @@ router.post('/check-in/:booking_id', authMiddleware, async (req, res) => {
     const booking = bookings[0];
     const previousStatus = booking.status;
     
-    // Get room assignment
-    const assignments = await sequelize.query(`
-      SELECT assignment_id, inventory_id, status
-      FROM room_assignments
-      WHERE booking_id = ? AND status = 'assigned'
+    // Get room inventory from room booking
+    const roomBookings = await sequelize.query(`
+      SELECT rb.inventory_id
+      FROM room_bookings rb
+      WHERE rb.booking_id = ? AND rb.inventory_id IS NOT NULL
       LIMIT 1
     `, {
       replacements: [booking_id],
@@ -229,15 +226,15 @@ router.post('/check-in/:booking_id', authMiddleware, async (req, res) => {
       transaction: t
     });
     
-    if (assignments.length === 0) {
+    if (roomBookings.length === 0) {
       await t.rollback();
       return res.status(404).json({
         success: false,
-        message: 'No room assignment found for this booking'
+        message: 'No room assigned for this booking'
       });
     }
     
-    const assignment = assignments[0];
+    const inventoryId = roomBookings[0].inventory_id;
     
     // Get room details for logging
     const roomDetails = await sequelize.query(`
@@ -246,27 +243,12 @@ router.post('/check-in/:booking_id', authMiddleware, async (req, res) => {
       WHERE ri.inventory_id = ?
       LIMIT 1
     `, {
-      replacements: [assignment.inventory_id],
+      replacements: [inventoryId],
       type: sequelize.QueryTypes.SELECT,
       transaction: t
     });
     
     const roomNumber = roomDetails.length > 0 ? roomDetails[0].unit_number : null;
-    
-    // Update room assignment to checked_in
-    await sequelize.query(`
-      UPDATE room_assignments
-      SET 
-        status = 'checked_in',
-        check_in_time = NOW(),
-        key_card_issued = ?,
-        notes = ?
-      WHERE assignment_id = ?
-    `, {
-      replacements: [key_card_number, notes, assignment.assignment_id],
-      type: sequelize.QueryTypes.UPDATE,
-      transaction: t
-    });
     
     // Update room inventory status to occupied
     await sequelize.query(`
@@ -274,15 +256,15 @@ router.post('/check-in/:booking_id', authMiddleware, async (req, res) => {
       SET status = 'occupied', updated_at = NOW()
       WHERE inventory_id = ?
     `, {
-      replacements: [assignment.inventory_id],
+      replacements: [inventoryId],
       type: sequelize.QueryTypes.UPDATE,
       transaction: t
     });
     
-    // Update booking status to 'completed' (guest checked in and in house)
+    // Update booking status to 'checked_in' (guest checked in and in house)
     await sequelize.query(`
       UPDATE bookings
-      SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+      SET status = 'checked_in', updated_at = NOW()
       WHERE booking_id = ?
     `, {
       replacements: [booking_id],
@@ -384,14 +366,14 @@ router.get('/in-house-guests', authMiddleware, async (req, res) => {
 
     const homestayId = user.assigned_hotel_id;
 
-    // Get all bookings with status 'completed' (checked-in) that haven't checked out yet
+    // Get all bookings with status 'checked_in' (checked-in) that haven't checked out yet
     const inHouseGuests = await sequelize.query(`
       SELECT
         b.booking_id,
         b.booking_reference,
         b.status as booking_status,
         b.payment_status,
-        b.completed_at as checked_in_at,
+        b.updated_at as checked_in_at,
         rb.check_in_date,
         rb.check_out_date,
         rb.nights,
@@ -418,7 +400,7 @@ router.get('/in-house-guests', authMiddleware, async (req, res) => {
       LEFT JOIN room_inventory ri ON rb.inventory_id = ri.inventory_id
       LEFT JOIN room_types rt ON ri.room_type_id = rt.room_type_id
       INNER JOIN homestays h ON rb.homestay_id = h.homestay_id
-      WHERE b.status = 'completed'
+      WHERE b.status = 'checked_in'
         AND rb.homestay_id = ?
         AND rb.check_in_date <= CURDATE()
         AND rb.check_out_date >= CURDATE()
@@ -473,7 +455,7 @@ router.get('/checkouts', authMiddleware, async (req, res) => {
         b.status as booking_status,
         b.payment_status,
         b.total_amount,
-        b.completed_at as checked_in_at,
+        b.updated_at as checked_in_at,
         rb.check_in_date,
         rb.check_out_date,
         rb.nights,
@@ -505,7 +487,7 @@ router.get('/checkouts', authMiddleware, async (req, res) => {
       LEFT JOIN room_inventory ri ON rb.inventory_id = ri.inventory_id
       LEFT JOIN room_types rt ON ri.room_type_id = rt.room_type_id
       INNER JOIN homestays h ON rb.homestay_id = h.homestay_id
-      WHERE b.status = 'completed'
+      WHERE b.status = 'checked_in'
         AND rb.homestay_id = ?
         AND rb.check_out_date <= DATE_ADD(CURDATE(), INTERVAL 1 DAY)
       ORDER BY rb.check_out_date ASC, ri.unit_number ASC

@@ -422,8 +422,7 @@ class RoomBookingService {
       // Find booking with room details
       const booking = await Booking.findByPk(bookingId, {
         include: [
-          { model: RoomBooking, as: 'room_booking' },
-          { model: RoomAssignment, as: 'room_assignments' }
+          { model: RoomBooking, as: 'room_booking' }
         ],
         transaction
       });
@@ -505,8 +504,7 @@ class RoomBookingService {
       // Find booking
       const booking = await Booking.findByPk(bookingId, {
         include: [
-          { model: RoomBooking, as: 'room_booking' },
-          { model: RoomAssignment, as: 'room_assignments' }
+          { model: RoomBooking, as: 'room_booking' }
         ],
         transaction
       });
@@ -651,10 +649,6 @@ class RoomBookingService {
           {
             model: PaymentTransaction,
             as: 'payment_transactions'
-          },
-          {
-            model: RoomAssignment,
-            as: 'room_assignments'
           }
         ]
       });

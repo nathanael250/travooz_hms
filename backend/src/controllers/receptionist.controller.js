@@ -667,12 +667,14 @@ exports.checkInGuest = async (req, res) => {
 
     let roomNumber = null;
     let homestayId = null;
+    let inventoryId = null;
 
     for (const rb of roomBookings) {
       if (rb.inventory_id && rb.room) {
         await rb.room.update({ status: 'occupied' }, { transaction: t });
         roomNumber = rb.room.unit_number;
         homestayId = rb.homestay_id;
+        inventoryId = rb.inventory_id;
       }
     }
 
@@ -680,20 +682,21 @@ exports.checkInGuest = async (req, res) => {
     const guestName = roomBookings[0]?.guest_name || 'Unknown Guest';
 
     // Create check-in log entry
-    // Note: assignment_id is now optional as it may not always be available
+    // Note: assignment_id is now optional; we track the actual inventory_id instead
     await sequelize.query(`
       INSERT INTO check_in_logs (
-        booking_id, assignment_id, staff_id, guest_name, 
+        booking_id, assignment_id, inventory_id, staff_id, guest_name, 
         room_number, check_in_time, key_card_number, notes, homestay_id
-      ) VALUES (?, NULL, ?, ?, ?, NOW(), ?, ?, ?)
+      ) VALUES (?, NULL, ?, ?, ?, ?, NOW(), ?, ?, ?)
     `, {
       replacements: [
         booking_id,
+        inventoryId,
         staff_id,
         guestName,
         roomNumber,
-        key_card_number,
-        notes,
+        key_card_number || null,
+        notes || null,
         homestayId
       ],
       type: sequelize.QueryTypes.INSERT,
@@ -922,19 +925,6 @@ exports.checkOutGuest = async (req, res) => {
       type: sequelize.QueryTypes.INSERT,
       transaction: t
     });
-
-    // Update room_assignments with check_out_time if the column exists
-    if (roomBookings[0]?.assignment_id) {
-      await sequelize.query(`
-        UPDATE room_assignments 
-        SET check_out_time = NOW()
-        WHERE assignment_id = ?
-      `, {
-        replacements: [roomBookings[0].assignment_id],
-        type: sequelize.QueryTypes.UPDATE,
-        transaction: t
-      });
-    }
 
     // Handle admin override if provided and user is admin
     let overrideId = null;
