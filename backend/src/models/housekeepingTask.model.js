@@ -7,17 +7,9 @@ const HousekeepingTask = sequelize.define('HousekeepingTask', {
     primaryKey: true,
     autoIncrement: true
   },
-  homestay_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'homestays',
-      key: 'homestay_id'
-    }
-  },
   inventory_id: {
     type: DataTypes.INTEGER,
-    allowNull: true,
+    allowNull: false,
     comment: 'Room/unit being serviced',
     references: {
       model: 'room_inventory',
@@ -27,14 +19,12 @@ const HousekeepingTask = sequelize.define('HousekeepingTask', {
   task_type: {
     type: DataTypes.ENUM(
       'cleaning',
-      'deep_clean',
-      'linen_change',
-      'maintenance',
+      'deep_cleaning',
       'inspection',
-      'setup',
+      'maintenance',
       'turndown_service',
       'laundry',
-      'restocking'
+      'minibar_restock'
     ),
     allowNull: false
   },
@@ -43,7 +33,7 @@ const HousekeepingTask = sequelize.define('HousekeepingTask', {
     defaultValue: 'normal'
   },
   status: {
-    type: DataTypes.ENUM('pending', 'assigned', 'in_progress', 'completed', 'cancelled'),
+    type: DataTypes.ENUM('pending', 'in_progress', 'completed', 'cancelled', 'on_hold'),
     defaultValue: 'pending'
   },
   assigned_to: {
@@ -55,39 +45,22 @@ const HousekeepingTask = sequelize.define('HousekeepingTask', {
       key: 'user_id'
     }
   },
-  assigned_by: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'Manager/system user_id',
-    references: {
-      model: 'users',
-      key: 'user_id'
-    }
-  },
-  assignment_time: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  scheduled_date: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
-  },
   scheduled_time: {
-    type: DataTypes.TIME,
-    allowNull: true
-  },
-  start_time: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  completion_time: {
+  started_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  completed_at: {
     type: DataTypes.DATE,
     allowNull: true
   },
   estimated_duration: {
     type: DataTypes.INTEGER,
     comment: 'Estimated duration in minutes',
-    defaultValue: 30
+    allowNull: true
   },
   actual_duration: {
     type: DataTypes.INTEGER,
@@ -99,17 +72,17 @@ const HousekeepingTask = sequelize.define('HousekeepingTask', {
     allowNull: true,
     comment: 'Task instructions or special requirements'
   },
-  completion_notes: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Notes added upon completion'
-  },
   issues_found: {
     type: DataTypes.TEXT,
     allowNull: true,
     comment: 'Any issues or maintenance needs discovered'
   },
-  quality_rating: {
+  supplies_used: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Supplies/materials used for the task'
+  },
+  quality_score: {
     type: DataTypes.INTEGER,
     allowNull: true,
     comment: 'Quality rating 1-5',
@@ -118,41 +91,19 @@ const HousekeepingTask = sequelize.define('HousekeepingTask', {
       max: 5
     }
   },
-  verified_by: {
+  inspected_by: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    comment: 'Supervisor who verified completion',
+    comment: 'Supervisor who inspected completion',
     references: {
       model: 'users',
       key: 'user_id'
     }
   },
-  verification_time: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  booking_id: {
-    type: DataTypes.INTEGER,
+  inspection_notes: {
+    type: DataTypes.TEXT,
     allowNull: true,
-    comment: 'Related booking if task triggered by check-out',
-    references: {
-      model: 'bookings',
-      key: 'booking_id'
-    }
-  },
-  is_recurring: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  recurrence_pattern: {
-    type: DataTypes.STRING(50),
-    allowNull: true,
-    comment: 'daily, weekly, monthly, etc.'
-  },
-  parent_task_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'For recurring tasks, reference to parent'
+    comment: 'Inspection notes from supervisor'
   }
 }, {
   tableName: 'housekeeping_tasks',

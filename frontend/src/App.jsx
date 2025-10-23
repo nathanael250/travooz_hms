@@ -48,11 +48,13 @@ import {Bookings} from './pages/bookings/Bookings';
 import { FrontDeskBookingsList } from './pages/frontdesk';
 import { DashboardRouter } from './pages/DashboardRouter';
 import { MaintenanceRequests, MaintenanceAssets, MaintenanceDashboard } from './pages/maintenance';
+import StaffDashboard from './pages/staff/StaffDashboard';
 import { RestaurantTables, MenuManagement, RestaurantOrders, OrderItems, KitchenQueue, OrderDelivery } from './pages/restaurant';
 import { StockItems, StockMovements, Suppliers, PurchaseOrders, UsageLogs, InventoryAlerts } from './pages/stock';
 import { Invoices } from './pages/financial';
 import { EditHomestay } from './pages/hotels/EditHomestay';
 import { StayView } from './pages/hotels/StayView';
+import InvoiceSettings from './pages/settings/InvoiceSettings';
 import { AuthProvider } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
@@ -107,7 +109,6 @@ function App() {
           <Route path="financial/invoices" element={<Invoices />} />
 
           {/* Guest Management Routes */}
-          <Route path="guests/guest-profiles" element={<GuestProfiles />} />
           <Route path="guests/guest-requests" element={<GuestRequests />} />
           <Route path="guests/guest-complaints" element={<GuestComplaints />} />
           <Route path="guests/guest-reviews" element={<GuestReviews />} />
@@ -119,6 +120,10 @@ function App() {
           <Route path="housekeeping/my-tasks" element={<MyTasks />} />
           <Route path="housekeeping/pending" element={<HousekeepingTasks />} />
           <Route path="housekeeping/completed" element={<HousekeepingTasks />} />
+
+          {/* Staff Dashboard Routes */}
+          <Route path="staff/dashboard" element={<StaffDashboard />} />
+          <Route path="staff/my-tasks" element={<StaffDashboard />} />
 
           {/* Maintenance Management Routes */}
           <Route path="maintenance/dashboard" element={<MaintenanceDashboard />} />
@@ -141,7 +146,7 @@ function App() {
           <Route path="stock/usage-logs" element={<UsageLogs />} />
           <Route path="stock/alerts" element={<InventoryAlerts />} />
 
-          {/* Front Desk Routes */}
+          {/* Front Desk Routes - RECEPTIONIST */}
           <Route path="front-desk/bookings" element={<FrontDeskBookingsList />} />
           <Route path="front-desk/upcoming-arrivals" element={<UpcomingArrivals />} />
           <Route path="front-desk/check-out" element={<CheckOut />} />
@@ -149,6 +154,21 @@ function App() {
           <Route path="front-desk/room-status" element={<FrontDeskRoomStatus />} />
           <Route path="front-desk/walk-in-booking" element={<WalkInBooking />} />
           <Route path="front-desk/guest-folio" element={<GuestFolio />} />
+          <Route path="front-desk/guest-profiles" element={<GuestProfiles />} />
+
+          {/* Front Desk Routes - MANAGER */}
+          <Route path="manager/front-desk/bookings" element={<FrontDeskBookingsList />} />
+          <Route path="manager/front-desk/upcoming-arrivals" element={<UpcomingArrivals />} />
+          <Route path="manager/front-desk/check-out" element={<CheckOut />} />
+          <Route path="manager/front-desk/in-house-guests" element={<InHouseGuests />} />
+          <Route path="manager/front-desk/room-status" element={<FrontDeskRoomStatus />} />
+          <Route path="manager/front-desk/walk-in-booking" element={<WalkInBooking />} />
+          <Route path="manager/front-desk/guest-folio" element={<GuestFolio />} />
+          <Route path="manager/front-desk/guest-profiles" element={<GuestProfiles />} />
+
+          {/* Settings Routes */}
+          <Route path="settings" element={<Settings />} />
+          <Route path="settings/invoice" element={<InvoiceSettings />} />
 
           {/* Legacy routes */}
           <Route path="hotels" element={<Hotels />} />
@@ -158,7 +178,6 @@ function App() {
           <Route path="front-desk" element={<FrontDesk />} />
           <Route path="housekeeping" element={<Housekeeping />} />
           <Route path="reports" element={<Reports />} />
-          <Route path="settings" element={<Settings />} />
         </Route>
         
         {/* Catch all route */}

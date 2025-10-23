@@ -2,7 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { body, param, query, validationResult } = require('express-validator');
 const { HousekeepingTask, User, Room, Homestay, Booking, RoomStatusLog } = require('../models');
+const housekeepingTaskService = require('../services/housekeepingTaskService');
+const { sequelize } = require('../../config/database');
 const { Op } = require('sequelize');
+const { restrictToRoles } = require('../middlewares/roleAccess.middleware');
 
 // Validation middleware
 const validate = (req, res, next) => {
@@ -14,24 +17,22 @@ const validate = (req, res, next) => {
 };
 
 // GET /api/housekeeping/tasks - List all housekeeping tasks
+// ACCESSIBLE TO: All authenticated users (Housekeeping can view assigned tasks)
 router.get('/tasks', [
-  query('status').optional().isIn(['pending', 'assigned', 'in_progress', 'completed', 'cancelled']),
+  query('status').optional().isIn(['pending', 'in_progress', 'completed', 'cancelled', 'on_hold']),
   query('task_type').optional().isString(),
   query('priority').optional().isIn(['low', 'normal', 'high', 'urgent']),
-  query('homestay_id').optional().isInt(),
   query('inventory_id').optional().isInt(),
   query('assigned_to').optional().isInt(),
-  query('scheduled_date').optional().isISO8601()
+  query('scheduled_time').optional().isISO8601()
 ], validate, async (req, res) => {
   try {
     const { 
       status, 
       task_type, 
       priority, 
-      homestay_id, 
       inventory_id, 
       assigned_to,
-      scheduled_date,
       page = 1,
       limit = 50
     } = req.query;
@@ -41,21 +42,8 @@ router.get('/tasks', [
     if (status) whereClause.status = status;
     if (task_type) whereClause.task_type = task_type;
     if (priority) whereClause.priority = priority;
-    if (homestay_id) whereClause.homestay_id = homestay_id;
     if (inventory_id) whereClause.inventory_id = inventory_id;
     if (assigned_to) whereClause.assigned_to = assigned_to;
-    if (scheduled_date) whereClause.scheduled_date = scheduled_date;
-
-    // Filter by user's role and homestay access
-    if (req.user && req.user.role === 'vendor') {
-      // Vendors only see tasks for their homestays
-      const userHomestays = await Homestay.findAll({
-        where: { vendor_id: req.user.user_id },
-        attributes: ['homestay_id']
-      });
-      const homestayIds = userHomestays.map(h => h.homestay_id);
-      whereClause.homestay_id = { [Op.in]: homestayIds };
-    }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -68,29 +56,13 @@ router.get('/tasks', [
           attributes: ['inventory_id', 'unit_number', 'room_type', 'floor']
         },
         {
-          model: Homestay,
-          as: 'homestay',
-          attributes: ['homestay_id', 'name']
-        },
-        {
           model: User,
           as: 'assignedStaff',
           attributes: ['user_id', 'name', 'email', 'phone']
-        },
-        {
-          model: User,
-          as: 'assignedByUser',
-          attributes: ['user_id', 'name']
-        },
-        {
-          model: Booking,
-          as: 'booking',
-          attributes: ['booking_id', 'booking_reference']
         }
       ],
       order: [
         ['priority', 'DESC'],
-        ['scheduled_date', 'ASC'],
         ['scheduled_time', 'ASC']
       ],
       limit: parseInt(limit),
@@ -115,7 +87,8 @@ router.get('/tasks', [
   }
 });
 
-// GET /api/housekeeping/tasks/:task_id - Get specific task
+// GET /api/housekeeping/tasks/:task_id - Get specific task details
+// ACCESSIBLE TO: All authenticated users (Housekeeping can view their assigned task details)
 router.get('/tasks/:task_id', [
   param('task_id').isInt()
 ], validate, async (req, res) => {
@@ -127,32 +100,12 @@ router.get('/tasks/:task_id', [
         {
           model: Room,
           as: 'room',
-          attributes: ['inventory_id', 'unit_number', 'room_type', 'floor', 'building']
-        },
-        {
-          model: Homestay,
-          as: 'homestay',
-          attributes: ['homestay_id', 'name', 'address']
+          attributes: ['inventory_id', 'unit_number', 'room_type', 'floor']
         },
         {
           model: User,
           as: 'assignedStaff',
           attributes: ['user_id', 'name', 'email', 'phone']
-        },
-        {
-          model: User,
-          as: 'assignedByUser',
-          attributes: ['user_id', 'name']
-        },
-        {
-          model: User,
-          as: 'verifiedByUser',
-          attributes: ['user_id', 'name']
-        },
-        {
-          model: Booking,
-          as: 'booking',
-          attributes: ['booking_id', 'booking_reference', 'status']
         }
       ]
     });
@@ -172,38 +125,32 @@ router.get('/tasks/:task_id', [
 });
 
 // POST /api/housekeeping/tasks - Create new housekeeping task
-router.post('/tasks', [
-  body('homestay_id').isInt().withMessage('Homestay ID is required'),
-  body('inventory_id').optional().isInt(),
-  body('task_type').isIn([
-    'cleaning', 
-    'deep_clean', 
-    'linen_change', 
-    'maintenance', 
-    'inspection', 
-    'setup', 
-    'turndown_service', 
-    'laundry', 
-    'restocking'
-  ]).withMessage('Valid task type is required'),
-  body('priority').optional().isIn(['low', 'normal', 'high', 'urgent']),
-  body('scheduled_date').isISO8601().withMessage('Valid scheduled date is required'),
-  body('scheduled_time').optional().matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/),
-  body('assigned_to').optional().isInt(),
-  body('notes').optional().isString(),
-  body('booking_id').optional().isInt()
-], validate, async (req, res) => {
+// RESTRICTED: Only Front Desk and Admin can create tasks
+router.post('/tasks', 
+  restrictToRoles(['front_desk', 'admin', 'hotel_manager']),
+  [
+    body('inventory_id').isInt().withMessage('Room/Inventory ID is required'),
+    body('task_type').isIn([
+      'cleaning', 
+      'deep_cleaning', 
+      'inspection', 
+      'maintenance', 
+      'turndown_service', 
+      'laundry', 
+      'minibar_restock'
+    ]).withMessage('Valid task type is required'),
+    body('priority').optional().isIn(['low', 'normal', 'high', 'urgent']),
+    body('scheduled_time').isISO8601().withMessage('Valid scheduled time is required'),
+    body('assigned_to').optional().isInt(),
+    body('notes').optional().isString(),
+    body('estimated_duration').optional().isInt()
+  ], 
+  validate, 
+  async (req, res) => {
   try {
     const taskData = {
-      ...req.body,
-      assigned_by: req.user ? req.user.user_id : null
+      ...req.body
     };
-
-    // If assigning to staff, set assignment time and status
-    if (taskData.assigned_to) {
-      taskData.assignment_time = new Date();
-      taskData.status = 'assigned';
-    }
 
     const task = await HousekeepingTask.create(taskData);
 
@@ -214,11 +161,6 @@ router.post('/tasks', [
           model: Room,
           as: 'room',
           attributes: ['inventory_id', 'unit_number', 'room_type']
-        },
-        {
-          model: Homestay,
-          as: 'homestay',
-          attributes: ['homestay_id', 'name']
         },
         {
           model: User,
@@ -242,27 +184,27 @@ router.post('/tasks', [
 });
 
 // PUT /api/housekeeping/tasks/:task_id - Update task
+// ACCESSIBLE TO: All authenticated users (Housekeeping can update their assigned tasks, change status, add notes)
 router.put('/tasks/:task_id', [
   param('task_id').isInt(),
   body('task_type').optional().isIn([
     'cleaning', 
-    'deep_clean', 
-    'linen_change', 
-    'maintenance', 
+    'deep_cleaning', 
     'inspection', 
-    'setup', 
+    'maintenance', 
     'turndown_service', 
     'laundry', 
-    'restocking'
+    'minibar_restock'
   ]),
   body('priority').optional().isIn(['low', 'normal', 'high', 'urgent']),
-  body('status').optional().isIn(['pending', 'assigned', 'in_progress', 'completed', 'cancelled']),
+  body('status').optional().isIn(['pending', 'in_progress', 'completed', 'cancelled', 'on_hold']),
   body('assigned_to').optional().isInt(),
-  body('scheduled_date').optional().isISO8601(),
+  body('scheduled_time').optional().isISO8601(),
   body('notes').optional().isString(),
-  body('completion_notes').optional().isString(),
   body('issues_found').optional().isString(),
-  body('quality_rating').optional().isInt({ min: 1, max: 5 })
+  body('supplies_used').optional().isString(),
+  body('quality_score').optional().isInt({ min: 1, max: 5 }),
+  body('inspection_notes').optional().isString()
 ], validate, async (req, res) => {
   try {
     const { task_id } = req.params;
@@ -277,13 +219,13 @@ router.put('/tasks/:task_id', [
     // Handle status transitions
     if (updateData.status) {
       if (updateData.status === 'in_progress' && task.status !== 'in_progress') {
-        updateData.start_time = new Date();
+        updateData.started_at = new Date();
       } else if (updateData.status === 'completed' && task.status !== 'completed') {
-        updateData.completion_time = new Date();
+        updateData.completed_at = new Date();
         
-        // Calculate actual duration if start_time exists
-        if (task.start_time) {
-          const durationMs = new Date() - new Date(task.start_time);
+        // Calculate actual duration if started_at exists
+        if (task.started_at) {
+          const durationMs = new Date() - new Date(task.started_at);
           updateData.actual_duration = Math.round(durationMs / (1000 * 60)); // minutes
         }
 
@@ -299,15 +241,6 @@ router.put('/tasks/:task_id', [
       }
     }
 
-    // Handle assignment
-    if (updateData.assigned_to && updateData.assigned_to !== task.assigned_to) {
-      updateData.assignment_time = new Date();
-      updateData.assigned_by = req.user ? req.user.user_id : null;
-      if (task.status === 'pending') {
-        updateData.status = 'assigned';
-      }
-    }
-
     await task.update(updateData);
 
     // Fetch updated task with associations
@@ -319,19 +252,9 @@ router.put('/tasks/:task_id', [
           attributes: ['inventory_id', 'unit_number', 'room_type']
         },
         {
-          model: Homestay,
-          as: 'homestay',
-          attributes: ['homestay_id', 'name']
-        },
-        {
           model: User,
           as: 'assignedStaff',
           attributes: ['user_id', 'name', 'email']
-        },
-        {
-          model: User,
-          as: 'verifiedByUser',
-          attributes: ['user_id', 'name']
         }
       ]
     });
@@ -350,10 +273,15 @@ router.put('/tasks/:task_id', [
 });
 
 // PATCH /api/housekeeping/tasks/:task_id/assign - Assign task to staff
-router.patch('/tasks/:task_id/assign', [
-  param('task_id').isInt(),
-  body('assigned_to').isInt().withMessage('Staff user ID is required')
-], validate, async (req, res) => {
+// RESTRICTED: Only Front Desk and Admin can reassign tasks
+router.patch('/tasks/:task_id/assign', 
+  restrictToRoles(['front_desk', 'admin', 'hotel_manager']),
+  [
+    param('task_id').isInt(),
+    body('assigned_to').isInt().withMessage('Staff user ID is required')
+  ], 
+  validate, 
+  async (req, res) => {
   try {
     const { task_id } = req.params;
     const { assigned_to } = req.body;
@@ -424,7 +352,7 @@ router.patch('/tasks/:task_id/start', [
 
     await task.update({
       status: 'in_progress',
-      start_time: new Date()
+      started_at: new Date()
     });
 
     res.json({
@@ -443,13 +371,14 @@ router.patch('/tasks/:task_id/start', [
 // PATCH /api/housekeeping/tasks/:task_id/complete - Complete task
 router.patch('/tasks/:task_id/complete', [
   param('task_id').isInt(),
-  body('completion_notes').optional().isString(),
   body('issues_found').optional().isString(),
-  body('quality_rating').optional().isInt({ min: 1, max: 5 })
+  body('supplies_used').optional().isString(),
+  body('quality_score').optional().isInt({ min: 1, max: 5 }),
+  body('inspection_notes').optional().isString()
 ], validate, async (req, res) => {
   try {
     const { task_id } = req.params;
-    const { completion_notes, issues_found, quality_rating } = req.body;
+    const { issues_found, supplies_used, quality_score, inspection_notes } = req.body;
 
     const task = await HousekeepingTask.findByPk(task_id);
 
@@ -464,15 +393,16 @@ router.patch('/tasks/:task_id/complete', [
     const completionTime = new Date();
     const updateData = {
       status: 'completed',
-      completion_time: completionTime,
-      completion_notes,
+      completed_at: completionTime,
       issues_found,
-      quality_rating
+      supplies_used,
+      quality_score,
+      inspection_notes
     };
 
     // Calculate actual duration
-    if (task.start_time) {
-      const durationMs = completionTime - new Date(task.start_time);
+    if (task.started_at) {
+      const durationMs = completionTime - new Date(task.started_at);
       updateData.actual_duration = Math.round(durationMs / (1000 * 60));
     }
 
@@ -517,9 +447,14 @@ router.patch('/tasks/:task_id/complete', [
 });
 
 // DELETE /api/housekeeping/tasks/:task_id - Delete task
-router.delete('/tasks/:task_id', [
-  param('task_id').isInt()
-], validate, async (req, res) => {
+// RESTRICTED: Only Front Desk and Admin can delete tasks
+router.delete('/tasks/:task_id', 
+  restrictToRoles(['front_desk', 'admin', 'hotel_manager']),
+  [
+    param('task_id').isInt()
+  ], 
+  validate, 
+  async (req, res) => {
   try {
     const { task_id } = req.params;
 
@@ -703,6 +638,106 @@ router.get('/my-tasks', async (req, res) => {
     res.status(500).json({ 
       message: 'Error fetching my tasks', 
       error: error.message 
+    });
+  }
+});
+
+// GET /api/housekeeping/pending-confirmation - Get tasks pending staff confirmation from guest requests
+router.get('/pending-confirmation', async (req, res) => {
+  try {
+    const { assigned_to } = req.query;
+    
+    const tasks = await housekeepingTaskService.getPendingConfirmationTasks(
+      assigned_to ? parseInt(assigned_to) : null
+    );
+
+    res.json({
+      success: true,
+      count: tasks.length,
+      tasks
+    });
+  } catch (error) {
+    console.error('Error fetching pending confirmation tasks:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching pending confirmation tasks',
+      error: error.message
+    });
+  }
+});
+
+// PATCH /api/housekeeping/tasks/:task_id/confirm - Staff confirm/acknowledge a task
+// ACCESSIBLE TO: Housekeeping staff (Confirms receipt of task and marks as in_progress)
+// PURPOSE: When housekeeping staff sees a task assigned by front desk, they confirm it
+router.patch('/tasks/:task_id/confirm', [
+  param('task_id').isInt(),
+  body('notes').optional().isString()
+], validate, async (req, res) => {
+  try {
+    const { task_id } = req.params;
+    const { notes } = req.body;
+    const staffId = req.user?.user_id || req.body.staff_id;
+
+    if (!staffId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Staff ID is required'
+      });
+    }
+
+    // Update task confirmation status
+    const [updated] = await sequelize.query(`
+      UPDATE housekeeping_tasks 
+      SET 
+        confirmation_status = 'acknowledged',
+        confirmed_at = NOW(),
+        assigned_to = COALESCE(assigned_to, ?),
+        status = 'in_progress'
+      WHERE task_id = ?
+    `, {
+      replacements: [staffId, task_id],
+      type: sequelize.QueryTypes.UPDATE
+    });
+
+    if (updated === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found'
+      });
+    }
+
+    // Fetch updated task
+    const [task] = await sequelize.query(`
+      SELECT 
+        ht.*,
+        ri.unit_number,
+        ri.room_type,
+        rb.guest_name,
+        rb.guest_email,
+        gr.request_id as guest_request_id,
+        u.name as assigned_staff_name
+      FROM housekeeping_tasks ht
+      LEFT JOIN room_inventory ri ON ht.inventory_id = ri.inventory_id
+      LEFT JOIN guest_requests gr ON ht.guest_request_id = gr.request_id
+      LEFT JOIN room_bookings rb ON gr.booking_id = rb.booking_id
+      LEFT JOIN users u ON ht.assigned_to = u.user_id
+      WHERE ht.task_id = ?
+    `, {
+      replacements: [task_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    res.json({
+      success: true,
+      message: 'Task confirmed successfully',
+      task: task[0]
+    });
+  } catch (error) {
+    console.error('Error confirming task:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error confirming task',
+      error: error.message
     });
   }
 });

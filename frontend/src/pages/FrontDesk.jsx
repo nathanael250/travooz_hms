@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserCheck, LogIn, LogOut, FileText, DollarSign, Search, Calendar } from 'lucide-react';
+import { UserCheck, LogIn, LogOut, FileText, DollarSign, Search, Calendar, Printer } from 'lucide-react';
 import apiClient from '../services/apiClient';
 import '../styles/FrontDesk.css';
 
@@ -132,6 +132,45 @@ export const FrontDesk = () => {
     }).format(amount);
   };
 
+  const printInvoicePDF = async (invoiceId) => {
+    try {
+      const token = localStorage.getItem('hms_token');
+      const response = await fetch(`http://localhost:3001/api/invoices/${invoiceId}/pdf`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/pdf'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Open PDF in new tab for printing
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+        alert('Invoice opened for printing');
+      } else {
+        alert('Please allow popups to print invoices');
+      }
+      
+      // Clean up the URL after a delay
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 10000);
+    } catch (error) {
+      console.error('Error printing PDF:', error);
+      alert('Failed to print invoice');
+    }
+  };
+
   return (
     <div className="frontdesk-container">
       <div className="page-header">
@@ -261,6 +300,20 @@ export const FrontDesk = () => {
                   >
                     <FileText size={18} />
                     Generate Invoice
+                  </button>
+                  <button
+                    className="btn btn-info"
+                    onClick={() => {
+                      // Try to print existing invoice, or generate if doesn't exist
+                      generateInvoice(selectedBooking.booking_id).then(async (invoiceId) => {
+                        if (invoiceId) {
+                          await printInvoicePDF(invoiceId);
+                        }
+                      });
+                    }}
+                  >
+                    <Printer size={18} />
+                    Print Invoice
                   </button>
                   <button
                     className="btn btn-success"

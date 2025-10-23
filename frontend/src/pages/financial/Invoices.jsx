@@ -343,11 +343,14 @@ const Invoices = () => {
 const InvoiceModal = ({ invoice, onClose, onRefresh }) => {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [emailRecipient, setEmailRecipient] = useState(invoice.email || '');
   const [emailMessage, setEmailMessage] = useState('');
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-RW', {
@@ -364,6 +367,20 @@ const InvoiceModal = ({ invoice, onClose, onRefresh }) => {
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const fetchPaymentHistory = async () => {
+    try {
+      setLoadingPayments(true);
+      const response = await apiClient.get(`/invoices/${invoice.invoice_id}/payments`);
+      if (response.data?.success) {
+        setPaymentHistory(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+    } finally {
+      setLoadingPayments(false);
+    }
   };
 
   const handleRecordPayment = async (e) => {
@@ -396,8 +413,42 @@ const InvoiceModal = ({ invoice, onClose, onRefresh }) => {
     }
   };
 
-  const printInvoice = () => {
-    window.open(`http://localhost:3001/api/invoices/${invoice.invoice_id}/pdf`, '_blank');
+  const printInvoice = async () => {
+    try {
+      const token = localStorage.getItem('hms_token');
+      const response = await fetch(`http://localhost:3001/api/invoices/${invoice.invoice_id}/pdf`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/pdf'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Open PDF in new tab for printing
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      } else {
+        alert('Please allow popups to print invoices');
+      }
+      
+      // Clean up the URL after a delay
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 10000);
+    } catch (error) {
+      console.error('Error printing PDF:', error);
+      alert('Failed to print invoice');
+    }
   };
 
   const handleSendEmail = async (e) => {
@@ -438,6 +489,19 @@ const InvoiceModal = ({ invoice, onClose, onRefresh }) => {
           {/* Invoice Header */}
           <div className="invoice-header">
             <div className="invoice-company">
+              {/* Company Logo */}
+              {invoice.logo_url && (
+                <div className="mb-4">
+                  <img
+                    src={`http://localhost:3001${invoice.logo_url}`}
+                    alt="Company Logo"
+                    className="h-16 w-auto object-contain border border-gray-200 rounded bg-white p-2"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
               <h3>{invoice.homestay_name}</h3>
               <p>{invoice.homestay_address}</p>
               <p>Phone: {invoice.homestay_phone}</p>
@@ -572,6 +636,18 @@ const InvoiceModal = ({ invoice, onClose, onRefresh }) => {
               Record Payment
             </button>
           )}
+          <button 
+            className="btn btn-info" 
+            onClick={() => {
+              setShowPaymentHistory(!showPaymentHistory);
+              if (!showPaymentHistory) {
+                fetchPaymentHistory();
+              }
+            }}
+          >
+            <FileText size={18} />
+            Payment History
+          </button>
         </div>
 
         {/* Payment Form */}
@@ -602,7 +678,10 @@ const InvoiceModal = ({ invoice, onClose, onRefresh }) => {
                     <option value="card">Credit/Debit Card</option>
                     <option value="mobile_money">Mobile Money</option>
                     <option value="bank_transfer">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
+                    <option value="check">Check</option>
+                    <option value="paypal">PayPal</option>
+                    <option value="stripe">Stripe</option>
+                    <option value="other">Other</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -624,6 +703,63 @@ const InvoiceModal = ({ invoice, onClose, onRefresh }) => {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Payment History */}
+        {showPaymentHistory && (
+          <div className="payment-form-section">
+            <h4>Payment History</h4>
+            {loadingPayments ? (
+              <div className="text-center py-4">
+                <div className="spinner"></div>
+                <p>Loading payment history...</p>
+              </div>
+            ) : paymentHistory.length > 0 ? (
+              <div className="payment-history-table">
+                <table className="invoice-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                      <th>Paid By</th>
+                      <th>Reference</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentHistory.map((payment) => (
+                      <tr key={payment.transaction_id}>
+                        <td>{formatDate(payment.payment_date)}</td>
+                        <td>{formatCurrency(payment.amount)}</td>
+                        <td className="capitalize">{payment.payment_method.replace('_', ' ')}</td>
+                        <td>{payment.paid_by}</td>
+                        <td>{payment.reference_number || '-'}</td>
+                        <td>
+                          <span className={`status-badge ${payment.status}`}>
+                            {payment.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <p>No payment history found for this invoice.</p>
+              </div>
+            )}
+            <div className="form-actions">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowPaymentHistory(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         )}
 

@@ -22,7 +22,8 @@ import {
   UserCheck,
   Mail,
   Phone,
-  CreditCard
+  CreditCard,
+  Printer
 } from 'lucide-react';
 import apiClient from '../../services/apiClient';
 import toast from 'react-hot-toast';
@@ -117,18 +118,56 @@ export const RoomBookings = () => {
 
       if (response.data.success) {
         alert('Invoice generated successfully!');
-        window.open(`/financial/invoices`, '_blank');
+        return response.data.data.invoice_id;
       }
     } catch (error) {
       console.error('Error generating invoice:', error);
       if (error.response?.status === 400 && error.response?.data?.message?.includes('already exists')) {
         const invoiceId = error.response.data.invoice_id;
-        if (window.confirm('Invoice already exists for this booking. Would you like to view it?')) {
-          window.open(`/financial/invoices`, '_blank');
-        }
+        return invoiceId;
       } else {
         alert('Failed to generate invoice: ' + (error.response?.data?.message || error.message));
+        return null;
       }
+    }
+  };
+
+  const printInvoicePDF = async (invoiceId) => {
+    try {
+      const token = localStorage.getItem('hms_token');
+      const response = await fetch(`http://localhost:3001/api/invoices/${invoiceId}/pdf`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/pdf'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Open PDF in new tab for printing
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+        toast.success('Invoice opened for printing');
+      } else {
+        toast.error('Please allow popups to print invoices');
+      }
+      
+      // Clean up the URL after a delay
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 10000);
+    } catch (error) {
+      console.error('Error printing PDF:', error);
+      toast.error('Failed to print invoice');
     }
   };
 
@@ -579,13 +618,28 @@ export const RoomBookings = () => {
                         </button>
 
                         {(booking.status === 'confirmed' || booking.status === 'checked_in' || booking.status === 'checked_out' || booking.status === 'completed') && (
-                          <button
-                            className="text-orange-600 hover:text-orange-900 p-2 hover:bg-orange-50 rounded-lg"
-                            title="Generate Invoice"
-                            onClick={() => generateInvoice(booking.booking_id)}
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              className="text-orange-600 hover:text-orange-900 p-2 hover:bg-orange-50 rounded-lg"
+                              title="Generate Invoice"
+                              onClick={() => generateInvoice(booking.booking_id)}
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                            <button
+                              className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg"
+                              title="Print Invoice"
+                              onClick={() => {
+                                generateInvoice(booking.booking_id).then(async (invoiceId) => {
+                                  if (invoiceId) {
+                                    await printInvoicePDF(invoiceId);
+                                  }
+                                });
+                              }}
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

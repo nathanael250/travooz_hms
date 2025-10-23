@@ -6,6 +6,8 @@ const Room = require('../models/room.model');
 const RoomType = require('../models/roomType.model');
 const BookingGuest = require('../models/bookingGuest.model');
 const GuestProfile = require('../models/guestProfile.model');
+const Homestay = require('../models/homestay.model');
+const invoiceService = require('../services/invoiceService');
 
 /**
  * RECEPTIONIST CONTROLLER
@@ -14,6 +16,35 @@ const GuestProfile = require('../models/guestProfile.model');
  * All functions automatically scope data to the user's homestay_id.
  * Users cannot view or access data from other properties.
  */
+
+/**
+ * Helper function: Get homestay ID for any user (vendor or HMS)
+ * - Vendor users: Query homestays table where vendor_id = user.user_id
+ * - HMS users: Use assigned_hotel_id directly
+ */
+async function getHomestayIdForUser(user, userType) {
+  if (!user) {
+    throw new Error('User is not authenticated');
+  }
+
+  // HMS users have assigned_hotel_id directly
+  if (userType === 'hms' && user.assigned_hotel_id) {
+    return user.assigned_hotel_id;
+  }
+
+  // Vendor users need to look up their homestay
+  if (userType === 'regular' && user.role === 'vendor' && user.user_id) {
+    const homestay = await Homestay.findOne({
+      where: { vendor_id: user.user_id },
+      attributes: ['homestay_id']
+    });
+    if (homestay) {
+      return homestay.homestay_id;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Get bookings list for receptionist
@@ -35,17 +66,17 @@ exports.getBookingsList = async (req, res) => {
     } = req.query;
 
     const user = req.user;
+    const userType = req.userType;
 
     // Multi-vendor: Each user can only see their own property's bookings
-    // Get user's assigned hotel ID from the authenticated HMS user
-    if (!user || !user.assigned_hotel_id) {
+    // Get user's assigned homestay ID (works for both vendor and HMS users)
+    const targetHomestayId = await getHomestayIdForUser(user, userType);
+    if (!targetHomestayId) {
       return res.status(403).json({
         success: false,
         message: 'User is not associated with any hotel. Please contact administrator.'
       });
     }
-
-    const targetHomestayId = user.assigned_hotel_id;
 
     // Build where clause for bookings
     const bookingWhere = {};
@@ -222,16 +253,16 @@ exports.getBookingsList = async (req, res) => {
 exports.getUpcomingArrivals = async (req, res) => {
   try {
     const user = req.user;
+    const userType = req.userType;
 
-    // Multi-vendor: Get user's assigned hotel ID
-    if (!user || !user.assigned_hotel_id) {
+    // Multi-vendor: Get user's assigned homestay ID (works for both vendor and HMS users)
+    const homestayId = await getHomestayIdForUser(user, userType);
+    if (!homestayId) {
       return res.status(403).json({
         success: false,
         message: 'User is not associated with any hotel. Please contact administrator.'
       });
     }
-
-    const homestayId = user.assigned_hotel_id;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -305,16 +336,16 @@ exports.getAvailableRooms = async (req, res) => {
   try {
     const { check_in_date, check_out_date, room_type_id } = req.query;
     const user = req.user;
+    const userType = req.userType;
 
-    // Multi-vendor: HMS users already have assigned_hotel_id (which is the homestay_id)
-    if (!user || !user.assigned_hotel_id) {
+    // Multi-vendor: Get user's assigned homestay ID (works for both vendor and HMS users)
+    const homestayId = await getHomestayIdForUser(user, userType);
+    if (!homestayId) {
       return res.status(403).json({
         success: false,
         message: 'User is not associated with any homestay. Please contact administrator.'
       });
     }
-
-    const homestayId = user.assigned_hotel_id;
 
     // Build where clause for rooms (homestay_id is in room_types table, not room_inventory)
     const roomWhere = {
@@ -432,16 +463,16 @@ exports.assignRoom = async (req, res) => {
     const { booking_id } = req.params;
     const { room_id } = req.body;
     const user = req.user;
+    const userType = req.userType;
 
-    // Multi-vendor: Get user's assigned hotel ID
-    if (!user || !user.assigned_hotel_id) {
+    // Multi-vendor: Get user's assigned homestay ID (works for both vendor and HMS users)
+    const homestayId = await getHomestayIdForUser(user, userType);
+    if (!homestayId) {
       return res.status(403).json({
         success: false,
         message: 'User is not associated with any hotel. Please contact administrator.'
       });
     }
-
-    const homestayId = user.assigned_hotel_id;
 
     // Find the booking
     const booking = await Booking.findByPk(booking_id, {
@@ -621,10 +652,9 @@ exports.checkInGuest = async (req, res) => {
 
     const previousStatus = booking.status;
 
-    // Update booking status to completed
+    // Update booking status to checked_in
     await booking.update({
-      status: 'completed',
-      completed_at: new Date(),
+      status: 'checked_in',
       updated_at: new Date()
     }, { transaction: t });
 
@@ -650,11 +680,12 @@ exports.checkInGuest = async (req, res) => {
     const guestName = roomBookings[0]?.guest_name || 'Unknown Guest';
 
     // Create check-in log entry
+    // Note: assignment_id is now optional as it may not always be available
     await sequelize.query(`
       INSERT INTO check_in_logs (
-        booking_id, staff_id, guest_name, 
+        booking_id, assignment_id, staff_id, guest_name, 
         room_number, check_in_time, key_card_number, notes, homestay_id
-      ) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?)
+      ) VALUES (?, NULL, ?, ?, ?, NOW(), ?, ?, ?)
     `, {
       replacements: [
         booking_id,
@@ -754,10 +785,12 @@ exports.checkOutGuest = async (req, res) => {
       deposit_returned = 0, 
       additional_charges = 0, 
       payment_method,
-      notes 
+      notes,
+      admin_override
     } = req.body;
     // Handle both HMS users (hms_user_id) and regular users (user_id)
     const staff_id = req.user?.hms_user_id || req.user?.user_id;
+    const userRole = req.user?.role;
 
     if (!staff_id) {
       await t.rollback();
@@ -903,6 +936,70 @@ exports.checkOutGuest = async (req, res) => {
       });
     }
 
+    // Handle admin override if provided and user is admin
+    let overrideId = null;
+    if (admin_override && userRole === 'admin') {
+      const { final_amount, reason, confirm_rate } = admin_override;
+
+      if (confirm_rate) {
+        // Confirm current rate (no changes)
+        const confirmResult = await sequelize.query(`
+          INSERT INTO checkout_confirmations (
+            booking_id, confirmed_by, final_amount, confirmation_note, created_at
+          ) VALUES (?, ?, ?, ?, NOW())
+        `, {
+          replacements: [booking_id, staff_id, booking.final_amount || booking.total_amount || 0, reason || ''],
+          type: sequelize.QueryTypes.INSERT,
+          transaction: t
+        });
+
+        await booking.update({
+          rate_confirmed_by: staff_id,
+          rate_confirmed_at: new Date()
+        }, { transaction: t });
+
+      } else if (final_amount && final_amount > 0) {
+        // Apply rate override
+        const originalAmount = booking.final_amount || booking.total_amount || 0;
+        const difference = final_amount - originalAmount;
+
+        const overrideResult = await sequelize.query(`
+          INSERT INTO admin_overrides (
+            booking_id, admin_user_id, override_type, 
+            original_final_amount, overridden_final_amount, 
+            difference_amount, override_reason, status, created_at
+          ) VALUES (?, ?, 'rate_override', ?, ?, ?, ?, 'applied', NOW())
+        `, {
+          replacements: [booking_id, staff_id, originalAmount, final_amount, difference, reason],
+          type: sequelize.QueryTypes.INSERT,
+          transaction: t
+        });
+
+        overrideId = overrideResult[0];
+
+        // Update booking with new final amount
+        await booking.update({
+          final_amount,
+          total_amount: final_amount
+        }, { transaction: t });
+
+        // Update front_desk_logs with override reference
+        if (overrideId) {
+          await sequelize.query(`
+            UPDATE front_desk_logs
+            SET admin_override_id = ?
+            WHERE booking_id = ? AND action_type = 'check_out'
+            ORDER BY created_at DESC
+            LIMIT 1
+          `, {
+            replacements: [overrideId, booking_id],
+            type: sequelize.QueryTypes.UPDATE,
+            transaction: t
+          });
+        }
+      }
+    }
+
     await t.commit();
 
     // Fetch updated booking with all associations
@@ -941,6 +1038,199 @@ exports.checkOutGuest = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to check out guest',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Generate invoice for a guest
+ * Aggregates all charges (room, restaurant, laundry, services, etc.)
+ * Creates invoice with proper line items and totals
+ * 
+ * Multi-vendor: Validates that the booking belongs to the user's property
+ * 
+ * @route POST /front-desk/invoices/generate/:booking_id
+ * @param {number} booking_id - Booking ID from params
+ * @param {number} tax_rate - Tax rate percentage (default: 18)
+ * @param {number} service_charge_rate - Service charge rate percentage (default: 0)
+ * @param {number} discount_amount - Discount amount in currency (default: 0)
+ * @param {string} payment_terms - Payment terms text (default: "Due on receipt")
+ * @param {string} notes - Invoice notes
+ */
+exports.generateInvoice = async (req, res) => {
+  try {
+    const { booking_id } = req.params;
+    const user = req.user;
+    const userType = req.userType;
+
+    const {
+      tax_rate = 18,
+      service_charge_rate = 0,
+      discount_amount = 0,
+      payment_terms = 'Due on receipt',
+      notes = ''
+    } = req.body;
+
+    // Multi-vendor: Verify booking belongs to user's property
+    const targetHomestayId = await getHomestayIdForUser(user, userType);
+    if (!targetHomestayId) {
+      return res.status(403).json({
+        success: false,
+        message: 'User is not associated with any hotel'
+      });
+    }
+
+    // Verify booking exists and belongs to user's property
+    const booking = await sequelize.query(`
+      SELECT rb.homestay_id, b.booking_id
+      FROM bookings b
+      INNER JOIN room_bookings rb ON b.booking_id = rb.booking_id
+      WHERE b.booking_id = ?
+      LIMIT 1
+    `, {
+      replacements: [booking_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (booking.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Verify booking belongs to user's property
+    if (booking[0].homestay_id !== targetHomestayId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to generate invoice for this booking'
+      });
+    }
+
+    // Generate invoice using service
+    const result = await invoiceService.createInvoice({
+      bookingId: booking_id,
+      taxRate: parseFloat(tax_rate),
+      serviceChargeRate: parseFloat(service_charge_rate),
+      discountAmount: parseFloat(discount_amount),
+      paymentTerms: payment_terms,
+      notes,
+      generatedBy: user.user_id || user.hms_user_id
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Invoice generated successfully',
+      data: result.invoice
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating invoice:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      name: error.name,
+      sql: error.sql,
+      original: error.original
+    });
+
+    // Check if it's an "invoice already exists" error
+    if (error.message.includes('already exists')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate invoice',
+      error: error.message,
+      details: error.sql || error.original?.message || 'No additional details'
+    });
+  }
+};
+
+/**
+ * Get invoice preview with aggregated charges
+ * Shows what the invoice will look like before creation
+ * 
+ * @route GET /front-desk/invoices/preview/:booking_id
+ * @param {number} booking_id - Booking ID from params
+ */
+exports.previewInvoice = async (req, res) => {
+  try {
+    const { booking_id } = req.params;
+    const user = req.user;
+    const userType = req.userType;
+
+    // Multi-vendor: Verify booking belongs to user's property
+    const targetHomestayId = await getHomestayIdForUser(user, userType);
+    if (!targetHomestayId) {
+      return res.status(403).json({
+        success: false,
+        message: 'User is not associated with any hotel'
+      });
+    }
+
+    // Verify booking exists and belongs to user's property
+    const booking = await sequelize.query(`
+      SELECT rb.homestay_id, b.booking_id
+      FROM bookings b
+      INNER JOIN room_bookings rb ON b.booking_id = rb.booking_id
+      WHERE b.booking_id = ?
+      LIMIT 1
+    `, {
+      replacements: [booking_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (booking.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    if (booking[0].homestay_id !== targetHomestayId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to access this booking'
+      });
+    }
+
+    // Get aggregated charges
+    const { booking: bookingData, nights, invoiceItems, subtotal } = 
+      await invoiceService.aggregateChargesForBooking(booking_id);
+
+    // Calculate with default rates for preview
+    const taxRate = 18;
+    const taxAmount = (subtotal * taxRate) / 100;
+    const totalAmount = subtotal + taxAmount;
+
+    res.json({
+      success: true,
+      data: {
+        booking: bookingData,
+        nights,
+        items: invoiceItems,
+        summary: {
+          subtotal,
+          tax_amount: taxAmount,
+          service_charge: 0,
+          discount_amount: 0,
+          total_amount: totalAmount,
+          balance_due: totalAmount
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error generating invoice preview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate invoice preview',
       error: error.message
     });
   }

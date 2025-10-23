@@ -13,49 +13,116 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
+import StaffTaskDashboard from '../../components/StaffTaskDashboard';
+import apiClient from '../../services/apiClient';
 
 export const HousekeepingDashboard = () => {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    pendingTasks: 0,
+    inProgressTasks: 0,
+    completedToday: 0,
+    totalRooms: 0,
+    roomsByStatus: {
+      dirty: 0,
+      cleaning: 0,
+      clean: 0,
+      inspectionNeeded: 0
+    },
+    supplyAlerts: [],
+    teamActivity: []
+  });
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Mock data - replace with API call
-  const dashboardData = {
-    pendingTasks: 12,
-    inProgressTasks: 5,
-    completedToday: 28,
-    totalRooms: 60,
-    myTasks: [
-      { id: 1, room: '205', type: 'Full Cleaning', priority: 'high', status: 'pending', estimatedTime: '45 min' },
-      { id: 2, room: '301', type: 'Checkout Cleaning', priority: 'high', status: 'in-progress', estimatedTime: '60 min' },
-      { id: 3, room: '412', type: 'Touch-up', priority: 'medium', status: 'pending', estimatedTime: '20 min' },
-      { id: 4, room: '108', type: 'Deep Cleaning', priority: 'low', status: 'pending', estimatedTime: '90 min' },
-    ],
-    roomsByStatus: {
-      dirty: 12,
-      cleaning: 5,
-      clean: 38,
-      inspectionNeeded: 5
-    },
-    supplyAlerts: [
-      { item: 'Toilet Paper', level: 'critical', remaining: 15 },
-      { item: 'Towels', level: 'low', remaining: 25 },
-      { item: 'Bed Sheets', level: 'low', remaining: 30 },
-    ],
-    teamActivity: [
-      { name: 'Maria Santos', tasksCompleted: 8, tasksInProgress: 2, status: 'active' },
-      { name: 'John Doe', tasksCompleted: 6, tasksInProgress: 1, status: 'active' },
-      { name: 'Emma Wilson', tasksCompleted: 7, tasksInProgress: 2, status: 'active' },
-    ]
+  useEffect(() => {
+    fetchDashboardData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchDashboardData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch all guest requests for this hotel
+      const response = await apiClient.get('/guest-requests');
+      
+      if (response.data && response.data.data) {
+        const requests = response.data.data.requests || [];
+        
+        // Calculate statistics
+        const today = new Date().toDateString();
+        
+        const pendingCount = requests.filter(r => r.status === 'pending').length;
+        const inProgressCount = requests.filter(r => r.status === 'in_progress').length;
+        const completedCount = requests.filter(r => 
+          r.status === 'completed' && 
+          new Date(r.completed_time).toDateString() === today
+        ).length;
+
+        // Group by request type for activity summary
+        const teamActivityMap = {};
+        requests.forEach(request => {
+          if (request.assigned_staff_name) {
+            if (!teamActivityMap[request.assigned_staff_name]) {
+              teamActivityMap[request.assigned_staff_name] = {
+                name: request.assigned_staff_name,
+                tasksCompleted: 0,
+                tasksInProgress: 0,
+                status: 'active'
+              };
+            }
+            if (request.status === 'completed') {
+              teamActivityMap[request.assigned_staff_name].tasksCompleted++;
+            } else if (request.status === 'in_progress') {
+              teamActivityMap[request.assigned_staff_name].tasksInProgress++;
+            }
+          }
+        });
+
+        const teamActivity = Object.values(teamActivityMap);
+
+        setDashboardData({
+          pendingTasks: pendingCount,
+          inProgressTasks: inProgressCount,
+          completedToday: completedCount,
+          totalRooms: 60, // This could be fetched from a rooms endpoint if needed
+          roomsByStatus: {
+            dirty: 12,        // These could be fetched from room status endpoint
+            cleaning: 5,
+            clean: 38,
+            inspectionNeeded: 5
+          },
+          supplyAlerts: [
+            // Supply alerts can be fetched from a stock management endpoint
+            { item: 'Toilet Paper', level: 'critical', remaining: 15 },
+            { item: 'Towels', level: 'low', remaining: 25 },
+            { item: 'Bed Sheets', level: 'low', remaining: 30 },
+          ],
+          teamActivity: teamActivity.length > 0 ? teamActivity : [
+            { name: 'No team members', tasksCompleted: 0, tasksInProgress: 0, status: 'inactive' }
+          ]
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) {
+  if (loading && Object.values(dashboardData.roomsByStatus).every(v => v === 0)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -91,6 +158,22 @@ export const HousekeepingDashboard = () => {
 
       {/* Content */}
       <div className="p-4 space-y-6 bg-gray-50">
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-900">Error loading dashboard</h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <button
+                onClick={fetchDashboardData}
+                className="mt-2 text-sm text-red-600 hover:text-red-700 font-medium underline"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        )}
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
@@ -119,49 +202,13 @@ export const HousekeepingDashboard = () => {
           />
         </div>
 
-        {/* My Tasks */}
+        {/* Guest Request Tasks - Integrated Task Management */}
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <ListChecks className="h-5 w-5 text-purple-600" />
-            My Tasks
+            My Assigned Tasks
           </h3>
-          <div className="space-y-3">
-            {dashboardData.myTasks.map((task) => (
-              <div key={task.id} className={`p-3 rounded-lg border-l-4 ${
-                task.priority === 'high'
-                  ? 'bg-red-50 border-red-500'
-                  : task.priority === 'medium'
-                  ? 'bg-yellow-50 border-yellow-500'
-                  : 'bg-blue-50 border-blue-500'
-              }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="text-lg font-bold text-gray-900">Room {task.room}</div>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      task.status === 'in-progress'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {task.status}
-                    </span>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    task.priority === 'high'
-                      ? 'bg-red-100 text-red-700'
-                      : task.priority === 'medium'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}>
-                    {task.priority}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                  <div>Type: <span className="font-medium">{task.type}</span></div>
-                  <div>Est. Time: <span className="font-medium">{task.estimatedTime}</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <StaffTaskDashboard staffRole="housekeeping" />
         </div>
 
         {/* Room Status Overview */}

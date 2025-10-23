@@ -765,6 +765,356 @@ router.put('/room-status/:room_id', authMiddleware, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/front-desk/folio/:booking_id
+ * @desc    Get guest folio with all charges and payments
+ * @access  Private (Staff only)
+ */
+router.get('/folio/:booking_id', authMiddleware, async (req, res) => {
+  try {
+    const { booking_id } = req.params;
+    const user = req.user;
+
+    if (!user || !user.assigned_hotel_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'User is not associated with any hotel.'
+      });
+    }
+
+    const homestayId = user.assigned_hotel_id;
+
+    // Get booking details with all charges
+    const folioQuery = await sequelize.query(`
+      SELECT
+        b.booking_id,
+        b.booking_reference,
+        b.status as booking_status,
+        b.payment_status,
+        b.total_amount,
+        b.created_at as booking_date,
+        rb.check_in_date,
+        rb.check_out_date,
+        rb.nights,
+        rb.guest_name,
+        rb.guest_email,
+        rb.guest_phone,
+        rb.total_room_amount,
+        rb.final_amount,
+        rt.name as room_type,
+        ri.unit_number as room_number,
+        h.name as homestay_name,
+        h.address as homestay_address
+      FROM bookings b
+      INNER JOIN room_bookings rb ON b.booking_id = rb.booking_id
+      LEFT JOIN room_inventory ri ON rb.inventory_id = ri.inventory_id
+      LEFT JOIN room_types rt ON ri.room_type_id = rt.room_type_id
+      INNER JOIN homestays h ON rb.homestay_id = h.homestay_id
+      WHERE b.booking_id = ? AND rb.homestay_id = ?
+      LIMIT 1
+    `, {
+      replacements: [booking_id, homestayId],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (folioQuery.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found or access denied'
+      });
+    }
+
+    const folio = folioQuery[0];
+
+    // Get all charges including room charges, booking charges, and guest request charges
+    const charges = [
+      {
+        id: 1,
+        date: folio.check_in_date,
+        category: 'Room',
+        description: `Room Charge - ${folio.room_type} (${folio.nights} nights)`,
+        amount: parseFloat(folio.total_room_amount || folio.total_amount),
+        quantity: folio.nights
+      }
+    ];
+
+    // Get booking charges (from booking_charges table)
+    const bookingCharges = await sequelize.query(`
+      SELECT charge_id, charge_type, description, quantity, unit_price, total_amount, charged_at
+      FROM booking_charges
+      WHERE booking_id = ?
+      ORDER BY charged_at ASC
+    `, {
+      replacements: [booking_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // Add booking charges to charges array
+    bookingCharges.forEach((charge) => {
+      charges.push({
+        id: `bc_${charge.charge_id}`,
+        date: charge.charged_at,
+        category: charge.charge_type.replace('_', ' ').toUpperCase(),
+        description: charge.description,
+        amount: parseFloat(charge.total_amount),
+        quantity: charge.quantity || 1
+      });
+    });
+
+    // Get guest request charges (for backward compatibility - these should now be in booking_charges)
+    const guestRequestCharges = await sequelize.query(`
+      SELECT request_id, request_type, description, additional_charges, status, completed_time
+      FROM guest_requests
+      WHERE booking_id = ? AND additional_charges > 0 AND status = 'completed'
+      ORDER BY completed_time ASC
+    `, {
+      replacements: [booking_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // Add guest request charges to charges array (only if not already in booking_charges)
+    guestRequestCharges.forEach((request) => {
+      // Check if this charge is already in booking_charges
+      const alreadyExists = bookingCharges.some(bc => 
+        bc.description.includes(request.description) && 
+        parseFloat(bc.total_amount) === parseFloat(request.additional_charges)
+      );
+      
+      if (!alreadyExists) {
+        charges.push({
+          id: `gr_${request.request_id}`,
+          date: request.completed_time,
+          category: request.request_type.replace('_', ' ').toUpperCase(),
+          description: `${request.request_type.replace('_', ' ').toUpperCase()} - ${request.description}`,
+          amount: parseFloat(request.additional_charges),
+          quantity: 1
+        });
+      }
+    });
+
+    // Get payments from payment_transactions table
+    const paymentsQuery = await sequelize.query(`
+      SELECT 
+        transaction_id as id,
+        payment_method as method,
+        reference_number as reference,
+        amount,
+        paid_by,
+        status,
+        created_at
+      FROM payment_transactions 
+      WHERE booking_id = ? AND status = 'completed'
+      ORDER BY created_at DESC
+    `, {
+      replacements: [booking_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const payments = paymentsQuery.map(payment => ({
+      id: payment.id,
+      date: payment.created_at,
+      method: payment.method,
+      reference: payment.reference || '',
+      amount: parseFloat(payment.amount),
+      paid_by: payment.paid_by,
+      status: payment.status
+    }));
+
+    // Calculate totals
+    const totalCharges = charges.reduce((sum, charge) => sum + parseFloat(charge.amount), 0);
+    const totalPayments = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    const balance = totalCharges - totalPayments;
+
+    res.json({
+      success: true,
+      data: {
+        booking: {
+          id: folio.booking_id,
+          reference: folio.booking_reference,
+          guest_name: folio.guest_name,
+          guest_email: folio.guest_email,
+          guest_phone: folio.guest_phone,
+          room_number: folio.room_number,
+          room_type: folio.room_type,
+          check_in: folio.check_in_date,
+          check_out: folio.check_out_date,
+          nights: folio.nights,
+          status: folio.booking_status,
+          payment_status: folio.payment_status
+        },
+        charges,
+        payments,
+        summary: {
+          totalCharges: totalCharges,
+          totalPayments: totalPayments,
+          balance: balance
+        },
+        hotel: {
+          name: folio.homestay_name,
+          address: folio.homestay_address
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching guest folio:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch guest folio',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/front-desk/folio/:booking_id/payment
+ * @desc    Record a payment against a guest folio/booking
+ * @access  Private (Front Desk/Receptionist)
+ */
+router.post('/folio/:booking_id/payment', authMiddleware, async (req, res) => {
+  const t = await sequelize.transaction();
+  
+  try {
+    const { booking_id } = req.params;
+    const { amount, method, reference, notes } = req.body;
+    const paid_by = req.user.full_name || req.user.email || 'Unknown User';
+
+    console.log('Payment request data:', {
+      booking_id,
+      amount,
+      method,
+      reference,
+      notes,
+      paid_by
+    });
+
+    // Validate required fields
+    if (!amount || !method) {
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Amount and payment method are required' 
+      });
+    }
+
+    // Ensure booking_id is a number
+    const bookingId = parseInt(booking_id);
+    if (isNaN(bookingId)) {
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid booking ID' 
+      });
+    }
+
+    // Get booking details
+    const bookings = await sequelize.query(`
+      SELECT b.*, rb.final_amount, b.payment_status
+      FROM bookings b
+      INNER JOIN room_bookings rb ON b.booking_id = rb.booking_id
+      WHERE b.booking_id = ?
+    `, {
+      replacements: [bookingId],
+      type: sequelize.QueryTypes.SELECT,
+      transaction: t
+    });
+
+    if (bookings.length === 0) {
+      await t.rollback();
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Booking not found' 
+      });
+    }
+
+    const booking = bookings[0];
+    const paymentAmount = parseFloat(amount);
+    
+    // Record payment transaction
+    const [transactionId] = await sequelize.query(`
+      INSERT INTO payment_transactions (
+        booking_id, amount, payment_method, paid_by, reference_number, 
+        status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'completed', NOW(), NOW())
+    `, {
+      replacements: [bookingId, paymentAmount, method, paid_by, reference],
+      type: sequelize.QueryTypes.INSERT,
+      transaction: t
+    });
+
+    // Calculate total payments for this booking
+    const totalPayments = await sequelize.query(`
+      SELECT COALESCE(SUM(amount), 0) as total_paid
+      FROM payment_transactions 
+      WHERE booking_id = ? AND status = 'completed'
+    `, {
+      replacements: [bookingId],
+      type: sequelize.QueryTypes.SELECT,
+      transaction: t
+    });
+
+    const totalPaid = parseFloat(totalPayments[0].total_paid);
+    const finalAmount = parseFloat(booking.final_amount);
+    
+    // Update booking payment status
+    let newPaymentStatus = 'unpaid';
+    if (totalPaid >= finalAmount) {
+      newPaymentStatus = 'paid';
+    } else if (totalPaid > 0) {
+      newPaymentStatus = 'partially_paid';
+    }
+
+    await sequelize.query(`
+      UPDATE bookings 
+      SET payment_status = ?
+      WHERE booking_id = ?
+    `, {
+      replacements: [newPaymentStatus, bookingId],
+      type: sequelize.QueryTypes.UPDATE,
+      transaction: t
+    });
+
+    // Log staff activity (optional - staff_id can be null)
+    try {
+      await sequelize.query(`
+        INSERT INTO staff_activity_logs (
+          staff_id, action, table_name, record_id, timestamp
+        ) VALUES (?, 'record_folio_payment', 'bookings', ?, NOW())
+      `, {
+        replacements: [req.user.hms_user_id, bookingId],
+        type: sequelize.QueryTypes.INSERT,
+        transaction: t
+      });
+    } catch (logError) {
+      console.log('Note: Could not log staff activity:', logError.message);
+      // Continue without logging - this is not critical
+    }
+
+    await t.commit();
+
+    res.json({
+      success: true,
+      message: 'Payment recorded successfully',
+      data: {
+        transaction_id: transactionId,
+        amount_paid: paymentAmount,
+        total_paid: totalPaid,
+        balance_due: finalAmount - totalPaid,
+        payment_status: newPaymentStatus
+      }
+    });
+
+  } catch (error) {
+    await t.rollback();
+    console.error('Error recording folio payment:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to record payment',
+      error: error.message 
+    });
+  }
+});
+
+/**
  * @route   GET /api/front-desk/check-in-logs
  * @desc    Get all check-in logs for hotel manager reporting
  * @access  Private (Manager/Admin only)

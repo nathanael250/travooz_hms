@@ -177,23 +177,14 @@ GuestProfile.hasMany(UserFavorite, { foreignKey: 'guest_id', as: 'favorites' });
 UserFavorite.belongsTo(GuestProfile, { foreignKey: 'guest_id', as: 'guest' });
 
 // Housekeeping Task associations
-Homestay.hasMany(HousekeepingTask, { foreignKey: 'homestay_id', as: 'housekeepingTasks' });
-HousekeepingTask.belongsTo(Homestay, { foreignKey: 'homestay_id', as: 'homestay' });
-
 Room.hasMany(HousekeepingTask, { foreignKey: 'inventory_id', as: 'housekeepingTasks' });
 HousekeepingTask.belongsTo(Room, { foreignKey: 'inventory_id', as: 'room' });
 
 User.hasMany(HousekeepingTask, { foreignKey: 'assigned_to', as: 'assignedTasks' });
 HousekeepingTask.belongsTo(User, { foreignKey: 'assigned_to', as: 'assignedStaff' });
 
-User.hasMany(HousekeepingTask, { foreignKey: 'assigned_by', as: 'tasksAssigned' });
-HousekeepingTask.belongsTo(User, { foreignKey: 'assigned_by', as: 'assignedByUser' });
-
-User.hasMany(HousekeepingTask, { foreignKey: 'verified_by', as: 'tasksVerified' });
-HousekeepingTask.belongsTo(User, { foreignKey: 'verified_by', as: 'verifiedByUser' });
-
-Booking.hasMany(HousekeepingTask, { foreignKey: 'booking_id', as: 'housekeepingTasks' });
-HousekeepingTask.belongsTo(Booking, { foreignKey: 'booking_id', as: 'booking' });
+User.hasMany(HousekeepingTask, { foreignKey: 'inspected_by', as: 'tasksInspected' });
+HousekeepingTask.belongsTo(User, { foreignKey: 'inspected_by', as: 'inspectorUser' });
 
 // Maintenance Request associations
 Homestay.hasMany(MaintenanceRequest, { foreignKey: 'homestay_id', as: 'maintenanceRequests' });

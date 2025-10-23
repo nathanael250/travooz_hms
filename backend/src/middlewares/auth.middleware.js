@@ -75,4 +75,43 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+/**
+ * Admin-only middleware
+ * Ensures user has admin role
+ * Must be used after authMiddleware
+ */
+const adminOnly = (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated'
+      });
+    }
+
+    // Check for admin role in both HMS and regular users
+    const userRole = req.user.role || req.user.user_role;
+    
+    if (userRole !== 'admin') {
+      console.log('Admin Middleware - Access denied. User role:', userRole);
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. Admin privileges required. Current role: ${userRole}`
+      });
+    }
+
+    console.log('Admin Middleware - Access granted for admin user:', req.user.email);
+    next();
+  } catch (error) {
+    console.error('Admin Middleware - Error:', error.message);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied.',
+      error: error.message
+    });
+  }
+};
+
 module.exports = authMiddleware;
+module.exports.adminOnly = adminOnly;
+module.exports.authenticateToken = authMiddleware;

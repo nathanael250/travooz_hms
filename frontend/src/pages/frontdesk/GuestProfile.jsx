@@ -12,25 +12,18 @@ import {
   Phone,
   Mail,
   MapPin,
+  IdCard,
   Crown,
   TrendingUp,
   Clock,
   CheckCircle,
   XCircle,
-  Loader2,
-  Eye,
-  Award,
-  ClipboardList,
-  Activity,
-  Plus,
-  DollarSign,
-  UserCheck,
-  UserX
+  Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiClient from '../../services/apiClient';
 
-const GuestProfiles = () => {
+export const GuestProfile = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [guests, setGuests] = useState([]);
   const [selectedGuest, setSelectedGuest] = useState(null);
@@ -39,69 +32,15 @@ const GuestProfiles = () => {
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [editForm, setEditForm] = useState({});
-  const [showRequestForm, setShowRequestForm] = useState(false);
-  const [requestForm, setRequestForm] = useState({
-    request_type: '',
-    description: '',
-    requested_time: '',
-    assigned_to: '',
-    priority: 'normal',
-    additional_charges: 0,
-    notes: ''
-  });
-  const [hmsStaff, setHmsStaff] = useState({});
-  const [loadingStaff, setLoadingStaff] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('hms_token');
     if (token) {
-      // Load all guests by default
-      loadAllGuests();
-      loadHmsStaff(); // Load HMS staff for assignment
+      // Load initial guest list or show search
     } else {
       console.warn('⚠️ No token available. User may need to login.');
     }
   }, []);
-
-  const loadAllGuests = async () => {
-    try {
-      setLoading(true);
-      console.log('📡 Loading all guests...');
-      const response = await apiClient.get('/guests/search?q=');
-      
-      if (response.data?.success) {
-        setGuests(response.data.data.guests);
-        console.log('✅ All guests loaded:', response.data.data.guests.length);
-      } else {
-        console.error('❌ API returned unsuccessful response:', response.data);
-        setGuests([]);
-      }
-    } catch (error) {
-      console.error('❌ Error loading guests:', error);
-      toast.error('Failed to load guests');
-      setGuests([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadHmsStaff = async () => {
-    try {
-      setLoadingStaff(true);
-      const response = await apiClient.get('/guest-requests/staff');
-      if (response.data.success) {
-        setHmsStaff(response.data.data.staffByRole);
-        console.log('✅ HMS Staff loaded:', response.data.data.staffByRole);
-      } else {
-        console.error('❌ Failed to load HMS staff:', response.data.message);
-      }
-    } catch (error) {
-      console.error('❌ Error loading HMS staff:', error);
-      toast.error('Failed to load staff data');
-    } finally {
-      setLoadingStaff(false);
-    }
-  };
 
   const searchGuests = async () => {
     if (!searchTerm || searchTerm.length < 2) {
@@ -232,165 +171,6 @@ const GuestProfiles = () => {
     }
   };
 
-  // Request Form Handlers
-  const handleRequestSubmit = async () => {
-    if (!selectedGuest || !guestData?.profile) {
-      toast.error('Please select a guest first');
-      return;
-    }
-
-    if (!requestForm.request_type) {
-      toast.error('Please select a request type');
-      return;
-    }
-
-    if (!requestForm.description.trim()) {
-      toast.error('Please provide a description');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // Get the most recent booking for this guest
-      const latestBooking = guestData.bookingHistory?.[0];
-      if (!latestBooking) {
-        toast.error('No booking found for this guest');
-        return;
-      }
-
-      const requestData = {
-        booking_id: latestBooking.booking_id,
-        guest_id: selectedGuest.guest_id,
-        request_type: requestForm.request_type,
-        description: requestForm.description.trim(),
-        priority: requestForm.priority,
-        assigned_to: requestForm.assigned_to || null,
-        requested_time: requestForm.requested_time || null,
-        additional_charges: parseFloat(requestForm.additional_charges) || 0,
-        notes: requestForm.notes.trim() || null
-      };
-
-      const response = await apiClient.post('/guest-requests', requestData);
-      
-      if (response.data.success) {
-        toast.success('Service request logged successfully');
-        setShowRequestForm(false);
-        setRequestForm({
-          request_type: '',
-          description: '',
-          requested_time: '',
-          assigned_to: '',
-          priority: 'normal',
-          additional_charges: 0,
-      notes: ''
-    });
-        // Refresh guest data to show the new request
-        await fetchGuestProfile(selectedGuest.guest_id);
-      } else {
-        toast.error(response.data.message || 'Failed to log request');
-      }
-    } catch (error) {
-      console.error('Error logging request:', error);
-      toast.error('Failed to log service request');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRequestFormChange = (field, value) => {
-    setRequestForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  // Helper function to get staff member name by ID or from API data
-  const getStaffMemberName = (request) => {
-    // If we have staff info from API, use it
-    if (request.assigned_staff_name) {
-      return `${request.assigned_staff_name} (${request.assigned_staff_role})`;
-    }
-    
-    // Fallback to local staff data
-    if (request.assigned_to) {
-      for (const [role, staff] of Object.entries(hmsStaff)) {
-        const member = staff.find(s => s.hms_user_id === parseInt(request.assigned_to));
-        if (member) {
-          return `${member.name} (${role})`;
-        }
-      }
-      return `Staff #${request.assigned_to}`;
-    }
-    
-    return 'Unassigned';
-  };
-
-  // Helper function to check if request is assigned to actual staff
-  const isAssignedToStaff = (request) => {
-    if (request.assigned_to) {
-      // Check if assigned_to is a staff ID (number) or department string
-      return !isNaN(parseInt(request.assigned_to));
-    }
-    return request.staff_notes && request.staff_notes.includes('Assigned to:');
-  };
-
-  // Request Management Handlers
-  const handleAssignRequest = async (requestId) => {
-    // For now, show a simple prompt. In a real app, this would open a modal
-    const assignedTo = prompt('Assign to (housekeeping, maintenance, concierge, front_desk, restaurant):');
-    if (!assignedTo) return;
-
-    try {
-      // Since assigned_to field expects integer, we'll store assignment info in staff_notes
-      const response = await apiClient.patch(`/guest-requests/${requestId}/status`, {
-        status: 'acknowledged',
-        staff_notes: `Assigned to: ${assignedTo}`
-      });
-
-      if (response.data.success) {
-        toast.success(`Request assigned to ${assignedTo}`);
-        // Refresh guest data
-        if (selectedGuest) {
-          await fetchGuestProfile(selectedGuest.guest_id);
-        }
-      } else {
-        toast.error(response.data.message || 'Failed to assign request');
-      }
-    } catch (error) {
-      console.error('Error assigning request:', error);
-      toast.error('Failed to assign request');
-    }
-  };
-
-  const handleUpdateRequestStatus = async (requestId) => {
-    // For now, show a simple prompt. In a real app, this would open a modal
-    const status = prompt('Update status (pending, acknowledged, in_progress, completed, cancelled):');
-    if (!status) return;
-
-    const staffNotes = prompt('Staff notes (optional):');
-
-    try {
-      const response = await apiClient.patch(`/guest-requests/${requestId}/status`, {
-        status,
-        staff_notes: staffNotes || null
-      });
-
-      if (response.data.success) {
-        toast.success('Request status updated successfully');
-        // Refresh guest data
-        if (selectedGuest) {
-          await fetchGuestProfile(selectedGuest.guest_id);
-        }
-      } else {
-        toast.error(response.data.message || 'Failed to update status');
-      }
-    } catch (error) {
-      console.error('Error updating request status:', error);
-      toast.error('Failed to update request status');
-    }
-  };
-
   return (
     <div className="p-6">
       {/* Header */}
@@ -407,75 +187,54 @@ const GuestProfiles = () => {
             
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
+              <input
+                type="text"
                 placeholder="Search by name, email, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && searchGuests()}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+              />
+            </div>
 
-          <div className="flex gap-2">
             <button
-                onClick={searchGuests}
-                disabled={loading || !searchTerm}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Search className="w-4 h-4" />
-                )}
-                Search
-            </button>
-            <button
-                onClick={loadAllGuests}
-                disabled={loading}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={searchGuests}
+              disabled={loading || !searchTerm}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-                <User className="w-4 h-4" />
-                All
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+              Search Guests
             </button>
-          </div>
 
             {/* Search Results */}
             <div className="mt-4 max-h-[600px] overflow-y-auto">
-              {loading ? (
-                <div className="p-8 text-center text-gray-500">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
-                  <p className="text-sm">Loading guests...</p>
-        </div>
-              ) : guests.length > 0 ? (
-                <>
-                  <div className="mb-2 text-xs text-gray-500 font-medium">
-                    {searchTerm ? `Search results (${guests.length})` : `All guests (${guests.length})`}
-      </div>
-                  {guests.map(guest => (
-                    <div
-                      key={guest.guest_id}
-                      onClick={() => handleSelectGuest(guest)}
-                      className={`p-3 rounded-lg cursor-pointer transition-all mb-2 ${
-                        selectedGuest?.guest_id === guest.guest_id
-                          ? 'bg-blue-50 border-2 border-blue-600'
-                          : 'bg-gray-50 border-2 border-transparent hover:border-blue-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-gray-900">{guest.full_name}</span>
-                        {/* Only show Crown icon for VIP guests - no other badges */}
-                        {guest.vip_status ? (
-                          <Crown className="w-4 h-4 text-purple-600" />
-                        ) : null}
-                      </div>
-                      <div className="text-xs text-gray-600">{guest.email}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {guest.total_bookings || 0} bookings • {formatCurrency(guest.total_spent || 0)}
-                      </div>
+              {guests.length > 0 ? (
+                guests.map(guest => (
+                  <div
+                    key={guest.guest_id}
+                    onClick={() => handleSelectGuest(guest)}
+                    className={`p-3 rounded-lg cursor-pointer transition-all mb-2 ${
+                      selectedGuest?.guest_id === guest.guest_id
+                        ? 'bg-blue-50 border-2 border-blue-600'
+                        : 'bg-gray-50 border-2 border-transparent hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-gray-900">{guest.full_name}</span>
+                      {guest.vip_status && (
+                        <Crown className="w-4 h-4 text-purple-600" />
+                      )}
                     </div>
-                  ))}
-                </>
+                    <div className="text-xs text-gray-600">{guest.email}</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {guest.total_bookings} bookings • {formatCurrency(guest.total_spent)}
+                    </div>
+                  </div>
+                ))
               ) : searchTerm ? (
                 <div className="p-8 text-center text-gray-500">
                   <User className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -484,14 +243,14 @@ const GuestProfiles = () => {
                 </div>
               ) : (
                 <div className="p-8 text-center text-gray-500">
-                  <User className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm">No guests found</p>
-                  <p className="text-xs text-gray-400 mt-1">Check if guests are properly registered</p>
-                        </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                  <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm">Search for guests</p>
+                  <p className="text-xs text-gray-400 mt-1">Enter name, email, or phone number</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Guest Details */}
         <div className="lg:col-span-2">
@@ -499,12 +258,12 @@ const GuestProfiles = () => {
             <div className="bg-white rounded-lg shadow-sm p-12 text-center">
               <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Select a guest to view their profile</p>
-                      </div>
+            </div>
           ) : loading ? (
             <div className="bg-white rounded-lg shadow-sm p-12 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
               <p className="text-gray-600">Loading guest profile...</p>
-                      </div>
+            </div>
           ) : !guestData ? (
             <div className="bg-white rounded-lg shadow-sm p-12 text-center">
               <AlertTriangle className="w-16 h-16 text-red-300 mx-auto mb-4" />
@@ -523,9 +282,9 @@ const GuestProfiles = () => {
                     <div>
                       <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         {guestData.profile.full_name}
-                        {guestData.profile.vip_status ? (
+                        {guestData.profile.vip_status && (
                           <Crown className="w-5 h-5 text-purple-600" />
-                        ) : null}
+                        )}
                       </h2>
                       <p className="text-sm text-gray-600">{guestData.profile.email}</p>
                       <p className="text-xs text-gray-500">
@@ -552,25 +311,16 @@ const GuestProfiles = () => {
                         </button>
                       </>
                     ) : (
-                      <>
-                        <button
-                          onClick={handleEdit}
-                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          Edit Profile
-                        </button>
-                        <button
-                          onClick={() => setShowRequestForm(true)}
-                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                        >
-                          <Plus className="w-4 h-4" />
-                          New Request
-                        </button>
-                      </>
+                      <button
+                        onClick={handleEdit}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        Edit Profile
+                      </button>
                     )}
-        </div>
-      </div>
+                  </div>
+                </div>
 
                 {/* Statistics Cards */}
                 <div className="grid grid-cols-4 gap-4">
@@ -606,9 +356,7 @@ const GuestProfiles = () => {
                       { id: 'bookings', label: 'Bookings', icon: Calendar },
                       { id: 'payments', label: 'Payments', icon: CreditCard },
                       { id: 'reviews', label: 'Reviews', icon: Star },
-                      { id: 'complaints', label: 'Complaints', icon: AlertTriangle },
-                      { id: 'requests', label: 'Service Requests', icon: ClipboardList },
-                      { id: 'activity', label: 'Activity Logs', icon: Activity }
+                      { id: 'complaints', label: 'Complaints', icon: AlertTriangle }
                     ].map(tab => (
                       <button
                         key={tab.id}
@@ -631,8 +379,8 @@ const GuestProfiles = () => {
                   {activeTab === 'profile' && (
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Personal Information */}
-                  <div>
+                        {/* Personal Information */}
+                        <div>
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
                           <div className="space-y-3">
                             <div className="flex items-center gap-3">
@@ -641,15 +389,15 @@ const GuestProfiles = () => {
                                 <label className="block text-xs text-gray-500">Full Name</label>
                                 {editing ? (
                                   <div className="flex gap-2">
-                    <input
-                      type="text"
+                                    <input
+                                      type="text"
                                       value={editForm.first_name}
                                       onChange={(e) => setEditForm({...editForm, first_name: e.target.value})}
                                       className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
                                       placeholder="First name"
                                     />
-                    <input
-                      type="text"
+                                    <input
+                                      type="text"
                                       value={editForm.last_name}
                                       onChange={(e) => setEditForm({...editForm, last_name: e.target.value})}
                                       className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
@@ -660,15 +408,15 @@ const GuestProfiles = () => {
                                   <p className="text-sm text-gray-900">{guestData.profile.full_name}</p>
                                 )}
                               </div>
-                  </div>
-
+                            </div>
+                            
                             <div className="flex items-center gap-3">
                               <Mail className="w-4 h-4 text-gray-400" />
                               <div className="flex-1">
                                 <label className="block text-xs text-gray-500">Email</label>
                                 {editing ? (
-                    <input
-                      type="email"
+                                  <input
+                                    type="email"
                                     value={editForm.email}
                                     onChange={(e) => setEditForm({...editForm, email: e.target.value})}
                                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
@@ -677,15 +425,15 @@ const GuestProfiles = () => {
                                   <p className="text-sm text-gray-900">{guestData.profile.email}</p>
                                 )}
                               </div>
-                  </div>
+                            </div>
 
                             <div className="flex items-center gap-3">
                               <Phone className="w-4 h-4 text-gray-400" />
                               <div className="flex-1">
                                 <label className="block text-xs text-gray-500">Phone</label>
                                 {editing ? (
-                    <input
-                      type="tel"
+                                  <input
+                                    type="tel"
                                     value={editForm.phone}
                                     onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
                                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
@@ -694,7 +442,7 @@ const GuestProfiles = () => {
                                   <p className="text-sm text-gray-900">{guestData.profile.phone || '-'}</p>
                                 )}
                               </div>
-                  </div>
+                            </div>
 
                             <div className="flex items-center gap-3">
                               <MapPin className="w-4 h-4 text-gray-400" />
@@ -716,16 +464,16 @@ const GuestProfiles = () => {
                         </div>
 
                         {/* Identification */}
-                  <div>
+                        <div>
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Identification</h3>
                           <div className="space-y-3">
                             <div className="flex items-center gap-3">
-                              <User className="w-4 h-4 text-gray-400" />
+                              <IdCard className="w-4 h-4 text-gray-400" />
                               <div className="flex-1">
                                 <label className="block text-xs text-gray-500">Nationality</label>
                                 {editing ? (
-                    <input
-                      type="text"
+                                  <input
+                                    type="text"
                                     value={editForm.nationality}
                                     onChange={(e) => setEditForm({...editForm, nationality: e.target.value})}
                                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
@@ -734,10 +482,10 @@ const GuestProfiles = () => {
                                   <p className="text-sm text-gray-900">{guestData.profile.nationality || '-'}</p>
                                 )}
                               </div>
-                  </div>
+                            </div>
 
                             <div className="flex items-center gap-3">
-                              <User className="w-4 h-4 text-gray-400" />
+                              <IdCard className="w-4 h-4 text-gray-400" />
                               <div className="flex-1">
                                 <label className="block text-xs text-gray-500">ID Type</label>
                                 {editing ? (
@@ -759,12 +507,12 @@ const GuestProfiles = () => {
                             </div>
 
                             <div className="flex items-center gap-3">
-                              <User className="w-4 h-4 text-gray-400" />
+                              <IdCard className="w-4 h-4 text-gray-400" />
                               <div className="flex-1">
                                 <label className="block text-xs text-gray-500">ID Number</label>
                                 {editing ? (
-                    <input
-                      type="text"
+                                  <input
+                                    type="text"
                                     value={editForm.id_number}
                                     onChange={(e) => setEditForm({...editForm, id_number: e.target.value})}
                                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
@@ -776,14 +524,14 @@ const GuestProfiles = () => {
                             </div>
                           </div>
                         </div>
-                  </div>
+                      </div>
 
                       {/* Preferences and Notes */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Preferences</h3>
                           {editing ? (
-                    <textarea
+                            <textarea
                               value={editForm.preferences}
                               onChange={(e) => setEditForm({...editForm, preferences: e.target.value})}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
@@ -795,9 +543,9 @@ const GuestProfiles = () => {
                               {guestData.profile.preferences || 'No preferences recorded'}
                             </p>
                           )}
-                  </div>
+                        </div>
 
-                  <div>
+                        <div>
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Notes</h3>
                           {editing ? (
                             <textarea
@@ -812,14 +560,14 @@ const GuestProfiles = () => {
                               {guestData.profile.notes || 'No notes recorded'}
                             </p>
                           )}
-                  </div>
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {/* Bookings Tab */}
                   {activeTab === 'bookings' && (
-                  <div>
+                    <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking History</h3>
                       {guestData.bookingHistory.length > 0 ? (
                         <div className="overflow-x-auto">
@@ -855,7 +603,7 @@ const GuestProfiles = () => {
                               ))}
                             </tbody>
                           </table>
-                  </div>
+                        </div>
                       ) : (
                         <div className="text-center py-8 text-gray-500">
                           <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -867,7 +615,7 @@ const GuestProfiles = () => {
 
                   {/* Payments Tab */}
                   {activeTab === 'payments' && (
-                  <div>
+                    <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment History</h3>
                       {guestData.paymentHistory.length > 0 ? (
                         <div className="overflow-x-auto">
@@ -899,7 +647,7 @@ const GuestProfiles = () => {
                               ))}
                             </tbody>
                           </table>
-                  </div>
+                        </div>
                       ) : (
                         <div className="text-center py-8 text-gray-500">
                           <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -911,7 +659,7 @@ const GuestProfiles = () => {
 
                   {/* Reviews Tab */}
                   {activeTab === 'reviews' && (
-                  <div>
+                    <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Reviews & Ratings</h3>
                       {guestData.reviews.length > 0 ? (
                         <div className="space-y-4">
@@ -928,9 +676,9 @@ const GuestProfiles = () => {
                                         }`}
                                       />
                                     ))}
-                  </div>
+                                  </div>
                                   <span className="text-sm font-medium text-gray-900">{review.rating}/5</span>
-                  </div>
+                                </div>
                                 <span className="text-xs text-gray-500">{formatDate(review.created_at)}</span>
                               </div>
                               <p className="text-sm text-gray-700 mb-2">{review.comment}</p>
@@ -961,9 +709,9 @@ const GuestProfiles = () => {
                                   <span className="text-sm font-medium text-red-900">
                                     {complaint.category || 'General Complaint'}
                                   </span>
-                  </div>
+                                </div>
                                 <span className="text-xs text-red-600">{formatDate(complaint.created_at)}</span>
-                </div>
+                              </div>
                               <p className="text-sm text-red-800 mb-2">{complaint.description}</p>
                               <div className="flex items-center justify-between">
                                 <p className="text-xs text-red-600">{complaint.homestay_name}</p>
@@ -987,305 +735,14 @@ const GuestProfiles = () => {
                       )}
                     </div>
                   )}
-
-                  {/* Service Requests Tab */}
-                  {activeTab === 'requests' && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900">Service Requests</h3>
-                        <span className="text-sm text-gray-500">
-                          {guestData.serviceRequests?.length || 0} requests
-                        </span>
-                  </div>
-                      
-                      {guestData.serviceRequests && guestData.serviceRequests.length > 0 ? (
-                        <div className="space-y-3">
-                          {guestData.serviceRequests.map(request => (
-                            <div key={request.request_id} className="bg-gray-50 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-medium text-gray-900 capitalize">
-                                  {request.request_type.replace('_', ' ')}
-                                </span>
-                                <span className={`px-2 py-1 rounded-full text-xs ${
-                                  request.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                  request.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                  request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {request.status}
-                                </span>
-                </div>
-                              <p className="text-sm text-gray-600 mb-2">{request.description}</p>
-                              <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                                <div className="flex items-center gap-4">
-                                  <span>Priority: {request.priority}</span>
-                                  <div className="flex items-center gap-1">
-                                    {isAssignedToStaff(request) ? (
-                                      <UserCheck className="w-3 h-3 text-green-600" />
-                                    ) : (
-                                      <UserX className="w-3 h-3 text-gray-400" />
-                                    )}
-                                    <span>Assigned: {getStaffMemberName(request)}
-                                    </span>
-                                  </div>
-                                </div>
-                                <span>Requested: {request.requested_time ? 
-                                  new Date(request.requested_time).toLocaleDateString() : 
-                                  'Not specified'}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <div className="flex gap-2">
-                  <button
-                                    onClick={() => handleAssignRequest(request.request_id)}
-                                    className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-                  >
-                                    {isAssignedToStaff(request) ? 'Reassign' : 'Assign'}
-                  </button>
-                  <button
-                                    onClick={() => handleUpdateRequestStatus(request.request_id)}
-                                    className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
-                  >
-                                    Update Status
-                  </button>
-                </div>
-                                {request.additional_charges > 0 && (
-                                  <span className="text-xs font-medium text-green-600">
-                                    +RWF {parseFloat(request.additional_charges).toLocaleString()}
-                                  </span>
-                                )}
-            </div>
-          </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                          <p>No service requests found</p>
-                          <p className="text-sm text-gray-400">This guest has no recorded service requests</p>
-                        </div>
-                      )}
-        </div>
-      )}
-
-                  {/* Activity Logs Tab */}
-                  {activeTab === 'activity' && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900">Activity Logs</h3>
-                        <span className="text-sm text-gray-500">
-                          {guestData.activityLogs?.length || 0} activities
-                        </span>
-                </div>
-                      
-                      {guestData.activityLogs && guestData.activityLogs.length > 0 ? (
-                        <div className="space-y-3">
-                          {guestData.activityLogs.map(log => (
-                            <div key={log.log_id} className="bg-gray-50 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-medium text-gray-900 capitalize">
-                                  {log.action.replace('_', ' ')}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {new Date(log.timestamp).toLocaleString()}
-                                </span>
-            </div>
-                              <div className="text-sm text-gray-600">
-                                <p>Table: {log.table_name}</p>
-                                <p>Record ID: {log.record_id}</p>
-                                {log.staff_id && <p>Staff ID: {log.staff_id}</p>}
-          </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Activity className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                          <p>No activity logs found</p>
-                          <p className="text-sm text-gray-400">No staff activities recorded for this guest</p>
-        </div>
-      )}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Request Form Modal */}
-      {showRequestForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Log Service Request</h2>
-                <button
-                onClick={() => setShowRequestForm(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                <X className="w-6 h-6" />
-                </button>
-              </div>
-
-            <form onSubmit={(e) => { e.preventDefault(); handleRequestSubmit(); }} className="space-y-4">
-              {/* Request Type */}
-                <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Request Type *
-                </label>
-                <select
-                  value={requestForm.request_type}
-                  onChange={(e) => handleRequestFormChange('request_type', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select request type</option>
-                  <option value="room_service">Room Service</option>
-                  <option value="housekeeping">Housekeeping</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="amenity">Amenity Request</option>
-                  <option value="wake_up_call">Wake-up Call</option>
-                  <option value="transportation">Transportation</option>
-                  <option value="concierge">Concierge Service</option>
-                  <option value="other">Other</option>
-                </select>
-                    </div>
-
-              {/* Description */}
-                    <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description *
-                </label>
-                <textarea
-                  value={requestForm.description}
-                  onChange={(e) => handleRequestFormChange('description', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Describe the service request..."
-                  required
-                />
-                    </div>
-
-              {/* Priority */}
-                    <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Priority
-                </label>
-                <select
-                  value={requestForm.priority}
-                  onChange={(e) => handleRequestFormChange('priority', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-                    </div>
-
-              {/* Requested Time */}
-                    <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Requested Time (Optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={requestForm.requested_time}
-                  onChange={(e) => handleRequestFormChange('requested_time', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-                </div>
-
-              {/* Assigned To */}
-                  <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assign To (Optional)
-                </label>
-                <select
-                  value={requestForm.assigned_to}
-                  onChange={(e) => handleRequestFormChange('assigned_to', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  disabled={loadingStaff}
-                >
-                  <option value="">Auto-assign based on type</option>
-                  {Object.entries(hmsStaff).map(([role, staff]) => (
-                    <optgroup key={role} label={role.charAt(0).toUpperCase() + role.slice(1)}>
-                      {staff.map(member => (
-                        <option key={member.hms_user_id} value={member.hms_user_id}>
-                          {member.name} ({member.email})
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                {loadingStaff && (
-                  <p className="text-xs text-gray-500 mt-1">Loading staff...</p>
-                )}
-              </div>
-
-              {/* Additional Charges */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Additional Charges (RWF)
-                </label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="number"
-                    value={requestForm.additional_charges}
-                    onChange={(e) => handleRequestFormChange('additional_charges', e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0"
-                    min="0"
-                    step="0.01"
-                  />
-                  </div>
-                  </div>
-
-              {/* Notes */}
-                  <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Internal Notes (Optional)
-                </label>
-                <textarea
-                  value={requestForm.notes}
-                  onChange={(e) => handleRequestFormChange('notes', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows={2}
-                  placeholder="Internal notes for staff..."
-                />
-                  </div>
-
-              {/* Submit Buttons */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Plus className="w-4 h-4" />
-                  )}
-                  Log Request
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowRequestForm(false)}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
-                >
-                  <X className="w-4 h-4" />
-                  Cancel
-                </button>
-                </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default GuestProfiles;
+export default GuestProfile;

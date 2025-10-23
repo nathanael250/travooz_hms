@@ -100,17 +100,16 @@ const getNavigation = (t) => [
       { name: 'Account Summary', href: '/financial/account-summary', icon: PieChart },
     ]
   },
-  {
-    name: 'Guest Management',
-    icon: Users,
-    children: [
-      { name: 'Guest Profiles', href: '/guests/guest-profiles', icon: UserCircle },
-      { name: 'Guest Requests', href: '/guests/guest-requests', icon: Bell },
-      { name: 'Guest Complaints', href: '/guests/guest-complaints', icon: AlertCircle },
-      { name: 'Guest Reviews', href: '/guests/guest-reviews', icon: Star },
-      { name: 'User Favorites', href: '/guests/user-favorites', icon: Heart },
-    ]
-  },
+  // {
+  //   name: 'Guest Management',
+  //   icon: Users,
+  //   children: [
+  //     { name: 'Guest Requests', href: '/guests/guest-requests', icon: Bell },
+  //     { name: 'Guest Complaints', href: '/guests/guest-complaints', icon: AlertCircle },
+  //     { name: 'Guest Reviews', href: '/guests/guest-reviews', icon: Star },
+  //     { name: 'User Favorites', href: '/guests/user-favorites', icon: Heart },
+  //   ]
+  // },
   {
     name: 'Front Desk',
     icon: UserCheck,
@@ -122,6 +121,7 @@ const getNavigation = (t) => [
       { name: 'Room Status', href: '/front-desk/room-status', icon: Activity },
       { name: 'Walk-In Booking', href: '/front-desk/walk-in-booking', icon: UserPlus },
       { name: 'Guest Folio', href: '/front-desk/guest-folio', icon: FileText },
+      { name: 'Guest Profiles', href: '/front-desk/guest-profiles', icon: UserCircle },
     ]
   },
   {
@@ -129,6 +129,13 @@ const getNavigation = (t) => [
     icon: Sparkles,
     children: [
       { name: 'Housekeeping Tasks', href: '/housekeeping/tasks', icon: ListChecks },
+    ]
+  },
+  {
+    name: 'Staff Dashboard',
+    icon: Users,
+    children: [
+      { name: 'My Tasks', href: '/staff/my-tasks', icon: CheckCircle },
     ]
   },
   {
@@ -166,6 +173,23 @@ const getNavigation = (t) => [
   { name: t('navigation.settings'), href: '/settings', icon: Settings },
 ];
 
+const adjustNavigationForRole = (navigation, role) => {
+  // Create a deep copy to avoid mutating original
+  return navigation.map(item => {
+    // Transform Front Desk URLs for vendor/manager roles: /front-desk/* → /manager/front-desk/*
+    if (item.name === 'Front Desk' && (role === 'manager' || role === 'vendor')) {
+      return {
+        ...item,
+        children: item.children?.map(child => ({
+          ...child,
+          href: child.href.replace('/front-desk/', '/manager/front-desk/')
+        }))
+      };
+    }
+    return item;
+  });
+};
+
 export const Sidebar = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
@@ -175,10 +199,22 @@ export const Sidebar = () => {
 
   const allNavigation = getNavigation(t);
   // Filter navigation based on user role
-  const navigation = user?.role ? filterNavigationByRole(allNavigation, user.role) : allNavigation;
+  let navigation = user?.role ? filterNavigationByRole(allNavigation, user.role) : allNavigation;
+  // Adjust URLs for specific roles
+  navigation = adjustNavigationForRole(navigation, user?.role);
 
   const isCurrentPage = (href) => {
-    return location.pathname === href || location.pathname.startsWith(href + '/');
+    const currentPath = location.pathname;
+    // Exact match
+    if (currentPath === href || currentPath.startsWith(href + '/')) {
+      return true;
+    }
+    // For vendor/manager roles accessing /manager/front-desk/*, also match /front-desk/* hrefs
+    if ((user?.role === 'manager' || user?.role === 'vendor') && href.startsWith('/front-desk/')) {
+      const managerHref = href.replace('/front-desk/', '/manager/front-desk/');
+      return currentPath === managerHref || currentPath.startsWith(managerHref + '/');
+    }
+    return false;
   };
 
   const isMenuExpanded = (menuName) => {

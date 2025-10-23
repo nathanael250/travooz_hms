@@ -65,4 +65,24 @@ router.post('/check-in/:booking_id', receptionistController.checkInGuest);
  */
 router.post('/check-out/:booking_id', receptionistController.checkOutGuest);
 
+/**
+ * GET /api/receptionist/invoices/preview/:booking_id
+ * Get invoice preview with aggregated charges
+ * Shows what the invoice will look like before creation
+ */
+router.get('/invoices/preview/:booking_id', receptionistController.previewInvoice);
+
+/**
+ * POST /api/receptionist/invoices/generate/:booking_id
+ * Generate invoice for a guest
+ * Aggregates all charges (room, restaurant, laundry, services, etc.)
+ * Body:
+ * - tax_rate: tax rate percentage (default: 18)
+ * - service_charge_rate: service charge rate percentage (default: 0)
+ * - discount_amount: discount amount in currency (default: 0)
+ * - payment_terms: payment terms text (default: "Due on receipt")
+ * - notes: invoice notes (optional)
+ */
+router.post('/invoices/generate/:booking_id', receptionistController.generateInvoice);
+
 module.exports = router;

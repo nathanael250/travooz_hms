@@ -15,12 +15,20 @@ import {
   Mail,
   DollarSign,
   Home,
-  Loader2
+  Loader2,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Edit2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiClient from '../../services/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const CheckOut = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  
   const [checkouts, setCheckouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,6 +42,12 @@ export const CheckOut = () => {
     lateCheckoutFee: 0,
     paymentMethod: 'cash',
     notes: ''
+  });
+  const [adminOverride, setAdminOverride] = useState({
+    enabled: false,
+    finalAmount: 0,
+    reason: '',
+    confirmRate: false
   });
 
   useEffect(() => {
@@ -106,20 +120,44 @@ export const CheckOut = () => {
     try {
       if (!selectedCheckout) return;
       
+      // Validate admin override if enabled
+      if (adminOverride.enabled && !adminOverride.finalAmount && !adminOverride.confirmRate) {
+        toast.error('Please set override amount or confirm the rate');
+        return;
+      }
+
+      if (adminOverride.enabled && adminOverride.finalAmount > 0 && !adminOverride.reason) {
+        toast.error('Please provide a reason for the override');
+        return;
+      }
+      
       console.log('💳 Processing checkout for booking:', selectedCheckout.id);
+      
+      const checkoutData = {
+        deposit_returned: checkoutForm.damageCharges || 0,
+        additional_charges: checkoutForm.minibarCharges + checkoutForm.lateCheckoutFee || 0,
+        payment_method: checkoutForm.paymentMethod,
+        notes: checkoutForm.notes
+      };
+
+      // Add admin override data if applicable
+      if (adminOverride.enabled && isAdmin) {
+        checkoutData.admin_override = {
+          final_amount: adminOverride.finalAmount,
+          reason: adminOverride.reason,
+          confirm_rate: adminOverride.confirmRate
+        };
+      }
+
       const response = await apiClient.post(
         `/receptionist/check-out/${selectedCheckout.id}`,
-        {
-          deposit_returned: checkoutForm.damageCharges || 0,
-          additional_charges: checkoutForm.minibarCharges + checkoutForm.lateCheckoutFee || 0,
-          payment_method: checkoutForm.paymentMethod,
-          notes: checkoutForm.notes
-        }
+        checkoutData
       );
 
       if (response.data?.success || response.status === 200) {
         toast.success('Guest checked out successfully!');
         setShowCheckoutModal(false);
+        setAdminOverride({ enabled: false, finalAmount: 0, reason: '', confirmRate: false });
         fetchCheckouts();
       } else {
         toast.error(response.data?.message || 'Failed to process checkout');
@@ -391,14 +429,99 @@ export const CheckOut = () => {
                   />
                 </div>
 
+                {/* ADMIN OVERRIDE SECTION - Only visible to admins */}
+                {isAdmin && (
+                  <div className="border-t border-gray-200 pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                        {adminOverride.enabled ? <Unlock className="w-5 h-5 text-orange-600" /> : <Lock className="w-5 h-5 text-gray-600" />}
+                        Admin Override Controls
+                      </h3>
+                      <button
+                        onClick={() => setAdminOverride({...adminOverride, enabled: !adminOverride.enabled})}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                          adminOverride.enabled
+                            ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {adminOverride.enabled ? 'Disable Override' : 'Enable Override'}
+                      </button>
+                    </div>
+
+                    {adminOverride.enabled && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-4">
+                        <div className="flex gap-2 p-3 bg-orange-100 rounded-lg">
+                          <AlertTriangle className="w-5 h-5 text-orange-700 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm text-orange-700">
+                            Admin overrides will be logged and audited. All changes require a reason.
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={adminOverride.confirmRate}
+                                onChange={(e) => setAdminOverride({...adminOverride, confirmRate: e.target.checked, finalAmount: 0})}
+                                className="w-4 h-4 rounded border-gray-300"
+                              />
+                              <span className="text-sm font-medium text-gray-700">Confirm Current Rate (No Changes)</span>
+                            </label>
+                          </div>
+
+                          <div className="border-t border-orange-200 pt-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Override Final Amount (RWF)</label>
+                            <input
+                              type="number"
+                              value={adminOverride.finalAmount}
+                              onChange={(e) => setAdminOverride({...adminOverride, finalAmount: parseFloat(e.target.value) || 0, confirmRate: false})}
+                              disabled={adminOverride.confirmRate}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100"
+                              placeholder="Enter override amount..."
+                            />
+                            <p className="text-xs text-gray-600 mt-1">Leave empty to keep calculated amount</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Override *</label>
+                            <textarea
+                              value={adminOverride.reason}
+                              onChange={(e) => setAdminOverride({...adminOverride, reason: e.target.value})}
+                              rows="2"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                              placeholder="Explain why this override is necessary (e.g., promotional discount, corporate rate adjustment, etc.)"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Total Calculation */}
-                <div className="bg-blue-50 rounded-lg p-4">
+                <div className={`rounded-lg p-4 ${adminOverride.enabled && adminOverride.finalAmount > 0 ? 'bg-orange-50 border-2 border-orange-300' : 'bg-blue-50'}`}>
                   <div className="flex justify-between items-center">
                     <span className="font-medium text-gray-700">Final Amount:</span>
-                    <span className="text-xl font-bold text-blue-600">
-                      RWF {(selectedCheckout.balanceAmount + checkoutForm.damageCharges + checkoutForm.minibarCharges + checkoutForm.lateCheckoutFee).toLocaleString()}
+                    <span className={`text-xl font-bold ${adminOverride.enabled && adminOverride.finalAmount > 0 ? 'text-orange-600' : 'text-blue-600'}`}>
+                      RWF {(
+                        adminOverride.enabled && adminOverride.finalAmount > 0
+                          ? adminOverride.finalAmount
+                          : selectedCheckout.balanceAmount + checkoutForm.damageCharges + checkoutForm.minibarCharges + checkoutForm.lateCheckoutFee
+                      ).toLocaleString()}
                     </span>
                   </div>
+                  {adminOverride.enabled && adminOverride.finalAmount > 0 && (
+                    <div className="mt-3 pt-3 border-t border-orange-200">
+                      <p className="text-xs text-orange-700 font-medium">
+                        ⚠️ Override Active: Original amount was RWF {(selectedCheckout.balanceAmount + checkoutForm.damageCharges + checkoutForm.minibarCharges + checkoutForm.lateCheckoutFee).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-orange-700 mt-1">Difference: RWF {(
+                        adminOverride.finalAmount - (selectedCheckout.balanceAmount + checkoutForm.damageCharges + checkoutForm.minibarCharges + checkoutForm.lateCheckoutFee)
+                      ).toLocaleString()}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -406,13 +529,22 @@ export const CheckOut = () => {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={processCheckout}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium ${
+                    adminOverride.enabled && adminOverride.finalAmount > 0
+                      ? 'bg-orange-600 hover:bg-orange-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
                 >
                   <CheckCircle className="w-5 h-5" />
-                  Complete Check-Out
+                  {adminOverride.enabled && adminOverride.finalAmount > 0 
+                    ? 'Confirm Override & Complete' 
+                    : 'Complete Check-Out'}
                 </button>
                 <button
-                  onClick={() => setShowCheckoutModal(false)}
+                  onClick={() => {
+                    setShowCheckoutModal(false);
+                    setAdminOverride({ enabled: false, finalAmount: 0, reason: '', confirmRate: false });
+                  }}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Cancel

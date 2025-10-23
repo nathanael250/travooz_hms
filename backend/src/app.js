@@ -25,7 +25,8 @@ const roomStatusLogRoutes = require('./routes/roomStatusLog.routes');
 const roomAssignmentRoutes = require('./routes/roomAssignment.routes');
 const roomBookingRoutes = require('./routes/roomBooking.routes');
 // const hotelRoutes = require('./routes/hotel.routes');
-// const guestRoutes = require('./routes/guest.routes');
+const guestRoutes = require('./routes/guest.routes');
+const guestRequestsRoutes = require('./routes/guestRequests.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const bookingManagementRoutes = require('./routes/bookingManagement.routes');
 const bookingChargesRoutes = require('./routes/bookingCharges.routes');
@@ -35,7 +36,6 @@ const multiRoomBookingsRoutes = require('./routes/multiRoomBookings.routes');
 const externalBookingsRoutes = require('./routes/externalBookings.routes');
 const financialAccountRoutes = require('./routes/financialAccount.routes');
 const guestProfilesRoutes = require('./routes/guestProfiles.routes');
-const guestRequestsRoutes = require('./routes/guestRequests.routes');
 const guestComplaintsRoutes = require('./routes/guestComplaints.routes');
 const guestReviewsRoutes = require('./routes/guestReviews.routes');
 const userFavoritesRoutes = require('./routes/userFavorites.routes');
@@ -49,8 +49,9 @@ const reportsRoutes = require('./routes/reports.routes');
 const locationRoutes = require('./routes/location.routes');
 const hmsUserRoutes = require('./routes/hmsUser.routes');
 const receptionistRoutes = require('./routes/receptionist.routes');
+const adminRoutes = require('./routes/admin.routes');
+const invoiceSettingsRoutes = require('./routes/invoiceSettings.routes');
 // const inventoryRoutes = require('./routes/housekeeping.routes');
-// const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -94,7 +95,7 @@ app.use(cors({
     process.env.FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(limiter);
@@ -135,7 +136,8 @@ app.use('/api/room-assignments', roomAssignmentRoutes); // Alias for plural form
 app.use('/api/room-booking', roomBookingRoutes);
 app.use('/api/room-bookings', roomBookingRoutes); // Alias for plural form
 // app.use('/api/hotels', hotelRoutes);
-// app.use('/api/guests', guestRoutes);
+app.use('/api/guests', authMiddleware, guestRoutes);
+app.use('/api/guest-requests', authMiddleware, guestRequestsRoutes);
 app.use('/api/bookings', authMiddleware, bookingRoutes);
 app.use('/api/booking-management', authMiddleware, bookingManagementRoutes);
 app.use('/api/booking-charges', authMiddleware, bookingChargesRoutes);
@@ -156,12 +158,13 @@ app.use('/api/restaurant', authMiddleware, restaurantRoutes);
 app.use('/api/stock', authMiddleware, stockRoutes);
 app.use('/api/front-desk', authMiddleware, frontDeskRoutes);
 app.use('/api/invoices', authMiddleware, invoiceRoutes);
+app.use('/api/invoice-settings', invoiceSettingsRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/hms-users', hmsUserRoutes);
 app.use('/api/receptionist', authMiddleware, receptionistRoutes);
+app.use('/api/admin', authMiddleware, adminRoutes);
 // app.use('/api/inventory', authMiddleware, inventoryRoutes);
-// app.use('/api/admin', authMiddleware, adminMiddleware, adminRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
