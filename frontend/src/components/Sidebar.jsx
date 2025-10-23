@@ -58,148 +58,178 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { filterNavigationByRole } from '../config/rolePermissions';
 
-const getNavigation = (t, userRole) => {
-  // Determine dashboard URL based on user role
-  const getDashboardUrl = (role) => {
-    switch (role?.toLowerCase()) {
-      case 'housekeeping':
-        return '/housekeeping/dashboard';
-      case 'receptionist':
-        return '/front-desk/bookings';
-      case 'maintenance':
-        return '/maintenance/dashboard';
-      case 'restaurant':
-        return '/restaurant/tables';
-      case 'inventory':
-        return '/stock/dashboard';
-      case 'accountant':
-        return '/financial/dashboard';
-      case 'manager':
-      case 'vendor':
-      case 'admin':
-      default:
-        return '/dashboard';
-    }
-  };
+const getNavigation = (t, role) => {
+  // Comprehensive navigation for vendor/manager/admin roles
+  if (['vendor', 'manager', 'admin'].includes(role)) {
+    return [
+      { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+      { 
+        name: 'Hotel Management', 
+        icon: Hotel, 
+        children: [
+          { name: 'Homestays', href: '/hotels/homestays', icon: Building },
+          { name: 'Room Types', href: '/hotels/room-types', icon: Grid3X3 },
+          { name: 'Room Inventory', href: '/hotels/room-inventory', icon: Package },
+          { name: 'Room Images', href: '/hotels/room-images', icon: Image },
+          { name: 'Room Rates', href: '/hotels/room-rates', icon: DollarSign },
+          { name: 'Room Availability', href: '/hotels/room-availability', icon: CalendarX },
+          { name: 'Room Status Log', href: '/hotels/room-status', icon: Activity },
+          { name: 'Room Assignments', href: '/hotels/room-assignments', icon: UserPlus },
+          { name: 'HMS User Management', href: '/hotels/hms-users', icon: Users },
+        ]
+      },
+      {
+        name: 'Booking Management',
+        icon: Calendar,
+        children: [
+          { name: 'Room Bookings', href: '/bookings/room-bookings', icon: Bed },
+          { name: 'Multi-Room Bookings', href: '/bookings/multi-room-bookings', icon: Users },
+          { name: 'Booking Guests', href: '/bookings/booking-guests', icon: User },
+          { name: 'Booking Modifications', href: '/bookings/booking-modifications', icon: Edit },
+          { name: 'Booking Charges', href: '/bookings/booking-charges', icon: DollarSign },
+          { name: 'External Bookings', href: '/bookings/external-bookings', icon: ExternalLink },
+        ]
+      },
+      {
+        name: 'Financial Management',
+        icon: CreditCard,
+        children: [
+          { name: 'Invoices', href: '/financial/invoices', icon: FileText },
+          { name: 'Accounts', href: '/financial/accounts', icon: CreditCard },
+          { name: 'Account Linkage', href: '/financial/account-linkage', icon: LinkIcon },
+          { name: 'Account Summary', href: '/financial/account-summary', icon: PieChart },
+        ]
+      },
+      {
+        name: 'Front Desk',
+        icon: UserCheck,
+        children: [
+          { name: 'Bookings List', href: '/front-desk/bookings', icon: ClipboardList },
+          { name: 'Upcoming Arrivals', href: '/front-desk/upcoming-arrivals', icon: Calendar },
+          { name: 'In-House Guests', href: '/front-desk/in-house-guests', icon: Users },
+          { name: 'Check-Out', href: '/front-desk/check-out', icon: LogOut },
+          { name: 'Room Status', href: '/front-desk/room-status', icon: Activity },
+          { name: 'Walk-In Booking', href: '/front-desk/walk-in-booking', icon: UserPlus },
+          { name: 'Guest Folio', href: '/front-desk/guest-folio', icon: FileText },
+          { name: 'Guest Profiles', href: '/front-desk/guest-profiles', icon: UserCircle },
+        ]
+      },
+      {
+        name: 'Housekeeping',
+        icon: Sparkles,
+        children: [
+          { name: 'Housekeeping Tasks', href: '/housekeeping/tasks', icon: ListChecks },
+        ]
+      },
+      {
+        name: 'Staff Dashboard',
+        icon: Users,
+        children: [
+          { name: 'My Tasks', href: '/staff/my-tasks', icon: CheckCircle },
+        ]
+      },
+      {
+        name: 'Maintenance',
+        icon: Wrench,
+        children: [
+          { name: 'Maintenance Requests', href: '/maintenance/requests', icon: AlertTriangle },
+        ]
+      },
+      {
+        name: 'Restaurant & Kitchen',
+        icon: UtensilsCrossed,
+        children: [
+          { name: 'Restaurant Tables', href: '/restaurant/tables', icon: TableIcon },
+          { name: 'Menu Management', href: '/restaurant/menu', icon: BookOpen },
+          { name: 'Restaurant Orders', href: '/restaurant/orders', icon: ShoppingCart },
+          { name: 'Order Items', href: '/restaurant/order-items', icon: ListIcon },
+          { name: 'Kitchen Queue', href: '/restaurant/kitchen-queue', icon: ChefHat },
+          { name: 'Order Delivery Info', href: '/restaurant/delivery', icon: Truck },
+        ]
+      },
+      {
+        name: 'Stock Management',
+        icon: Boxes,
+        children: [
+          { name: 'Stock Items', href: '/stock/items', icon: Box },
+          { name: 'Stock Movements', href: '/stock/movements', icon: TrendingUp },
+          { name: 'Suppliers', href: '/stock/suppliers', icon: Truck },
+          { name: 'Purchase Orders', href: '/stock/orders', icon: ShoppingBag },
+          { name: 'Usage Logs', href: '/stock/usage-logs', icon: ClipboardCheck },
+          { name: 'Inventory Alerts', href: '/stock/alerts', icon: AlertTriangle },
+        ]
+      },
+      { name: t('navigation.reports'), href: '/reports', icon: BarChart3 },
+      { name: t('navigation.settings'), href: '/settings', icon: Settings },
+    ];
+  }
 
-  return [
-  { 
-    name: 'Hotel Management', 
-    icon: Hotel, 
-    children: [
-      { name: 'Homestays', href: '/hotels/homestays', icon: Building },
-      { name: 'Room Types', href: '/hotels/room-types', icon: Grid3X3 },
-      { name: 'Room Inventory', href: '/hotels/room-inventory', icon: Package },
-      { name: 'Room Images', href: '/hotels/room-images', icon: Image },
-      { name: 'Room Rates', href: '/hotels/room-rates', icon: DollarSign },
-      { name: 'Room Availability', href: '/hotels/room-availability', icon: CalendarX },
-      { name: 'Room Status Log', href: '/hotels/room-status', icon: Activity },
-      { name: 'Room Assignments', href: '/hotels/room-assignments', icon: UserPlus },
-      { name: 'HMS User Management', href: '/hotels/hms-users', icon: Users },
-    ]
-  },
-  {
-    name: 'Booking Management',
-    icon: Calendar,
-    children: [
-      // { name: 'Bookings', href: '/bookings/bookings', icon: Calendar },
-      { name: 'Room Bookings', href: '/bookings/room-bookings', icon: Bed },
-      { name: 'Multi-Room Bookings', href: '/bookings/multi-room-bookings', icon: Users },
-      { name: 'Booking Guests', href: '/bookings/booking-guests', icon: User },
-      { name: 'Booking Modifications', href: '/bookings/booking-modifications', icon: Edit },
-      { name: 'Booking Charges', href: '/bookings/booking-charges', icon: DollarSign },
-      { name: 'External Bookings', href: '/bookings/external-bookings', icon: ExternalLink },
-    ]
-  },
-  {
-    name: 'Financial Management',
-    icon: CreditCard,
-    children: [
-      { name: 'Dashboard', href: '/financial/dashboard', icon: Home },
-      { name: 'Invoices', href: '/financial/invoices', icon: FileText },
-      { name: 'Accounts', href: '/financial/accounts', icon: CreditCard },
-      { name: 'Account Linkage', href: '/financial/account-linkage', icon: LinkIcon },
-      { name: 'Account Summary', href: '/financial/account-summary', icon: PieChart },
-    ]
-  },
-  // {
-  //   name: 'Guest Management',
-  //   icon: Users,
-  //   children: [
-  //     { name: 'Guest Requests', href: '/guests/guest-requests', icon: Bell },
-  //     { name: 'Guest Complaints', href: '/guests/guest-complaints', icon: AlertCircle },
-  //     { name: 'Guest Reviews', href: '/guests/guest-reviews', icon: Star },
-  //     { name: 'User Favorites', href: '/guests/user-favorites', icon: Heart },
-  //   ]
-  // },
-  {
-    name: 'Front Desk',
-    icon: UserCheck,
-    children: [
-      { name: 'Bookings List', href: '/front-desk/bookings', icon: ClipboardList },
-      { name: 'Upcoming Arrivals', href: '/front-desk/upcoming-arrivals', icon: Calendar },
-      { name: 'In-House Guests', href: '/front-desk/in-house-guests', icon: Users },
-      { name: 'Check-Out', href: '/front-desk/check-out', icon: LogOut },
-      { name: 'Room Status', href: '/front-desk/room-status', icon: Activity },
-      { name: 'Walk-In Booking', href: '/front-desk/walk-in-booking', icon: UserPlus },
-      { name: 'Guest Folio', href: '/front-desk/guest-folio', icon: FileText },
-      { name: 'Guest Profiles', href: '/front-desk/guest-profiles', icon: UserCircle },
-    ]
-  },
-  {
-    name: 'Housekeeping',
-    icon: Sparkles,
-    children: [
-      { name: 'Dashboard', href: '/housekeeping/dashboard', icon: Home },
-      { name: 'Housekeeping Tasks', href: '/housekeeping/tasks', icon: ListChecks },
-    ]
-  },
-  {
-    name: 'Staff Dashboard',
-    icon: Users,
-    children: [
-      { name: 'Dashboard', href: getDashboardUrl(userRole), icon: Home },
-      { name: 'My Tasks', href: '/staff/my-tasks', icon: CheckCircle },
-    ]
-  },
-  {
-    name: 'Maintenance',
-    icon: Wrench,
-    children: [
-      { name: 'Dashboard', href: '/maintenance/dashboard', icon: Home },
-      { name: 'Maintenance Requests', href: '/maintenance/requests', icon: AlertTriangle },
-    ]
-  },
-  {
-    name: 'Restaurant & Kitchen',
-    icon: UtensilsCrossed,
-    children: [
-      { name: 'Restaurant Tables', href: '/restaurant/tables', icon: TableIcon },
-      { name: 'Menu Management', href: '/restaurant/menu', icon: BookOpen },
-      { name: 'Restaurant Orders', href: '/restaurant/orders', icon: ShoppingCart },
-      { name: 'Order Items', href: '/restaurant/order-items', icon: ListIcon },
-      { name: 'Kitchen Queue', href: '/restaurant/kitchen-queue', icon: ChefHat },
-      { name: 'Order Delivery Info', href: '/restaurant/delivery', icon: Truck },
-    ]
-  },
-  {
-    name: 'Stock Management',
-    icon: Boxes,
-    children: [
-      { name: 'Dashboard', href: '/stock/dashboard', icon: Home },
-      { name: 'Stock Items', href: '/stock/items', icon: Box },
-      { name: 'Stock Movements', href: '/stock/movements', icon: TrendingUp },
-      { name: 'Suppliers', href: '/stock/suppliers', icon: Truck },
-      { name: 'Purchase Orders', href: '/stock/orders', icon: ShoppingBag },
-      { name: 'Usage Logs', href: '/stock/usage-logs', icon: ClipboardCheck },
-      { name: 'Inventory Alerts', href: '/stock/alerts', icon: AlertTriangle },
-    ]
-  },
-  { name: t('navigation.reports'), href: '/reports', icon: BarChart3 },
-  { name: t('navigation.settings'), href: '/settings', icon: Settings },
-];
+  // Role-specific navigation for other roles
+  switch (role) {
+    case 'receptionist':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Bookings List', href: '/front-desk/bookings', icon: ClipboardList },
+        { name: 'Upcoming Arrivals', href: '/front-desk/upcoming-arrivals', icon: Calendar },
+        { name: 'In-House Guests', href: '/front-desk/in-house-guests', icon: Users },
+        { name: 'Check-Out', href: '/front-desk/check-out', icon: LogOut },
+        { name: 'Room Status', href: '/front-desk/room-status', icon: Activity },
+        { name: 'Walk-In Booking', href: '/front-desk/walk-in-booking', icon: UserPlus },
+        { name: 'Guest Folio', href: '/front-desk/guest-folio', icon: FileText },
+        { name: 'Guest Profiles', href: '/front-desk/guest-profiles', icon: UserCircle },
+      ];
+
+    case 'housekeeping':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Housekeeping Tasks', href: '/housekeeping/tasks', icon: ListChecks },
+        { name: 'My Tasks', href: '/housekeeping/my-tasks', icon: CheckCircle },
+      ];
+
+    case 'maintenance':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Maintenance Requests', href: '/maintenance/requests', icon: AlertTriangle },
+        { name: 'My Tasks', href: '/maintenance/my-tasks', icon: CheckCircle },
+      ];
+
+    case 'restaurant':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Restaurant Tables', href: '/restaurant/tables', icon: TableIcon },
+        { name: 'Menu Management', href: '/restaurant/menu', icon: BookOpen },
+        { name: 'Restaurant Orders', href: '/restaurant/orders', icon: ShoppingCart },
+        { name: 'Order Items', href: '/restaurant/order-items', icon: ListIcon },
+        { name: 'Kitchen Queue', href: '/restaurant/kitchen-queue', icon: ChefHat },
+        { name: 'Order Delivery Info', href: '/restaurant/delivery', icon: Truck },
+      ];
+
+    case 'inventory':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Stock Items', href: '/stock/items', icon: Box },
+        { name: 'Stock Movements', href: '/stock/movements', icon: TrendingUp },
+        { name: 'Suppliers', href: '/stock/suppliers', icon: Truck },
+        { name: 'Purchase Orders', href: '/stock/orders', icon: ShoppingBag },
+        { name: 'Usage Logs', href: '/stock/usage-logs', icon: ClipboardCheck },
+        { name: 'Inventory Alerts', href: '/stock/alerts', icon: AlertTriangle },
+      ];
+
+    case 'accountant':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Invoices', href: '/financial/invoices', icon: FileText },
+        { name: 'Accounts', href: '/financial/accounts', icon: CreditCard },
+        { name: 'Account Linkage', href: '/financial/account-linkage', icon: LinkIcon },
+        { name: 'Account Summary', href: '/financial/account-summary', icon: PieChart },
+      ];
+
+    default:
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+      ];
+  }
 };
 
 const adjustNavigationForRole = (navigation, role) => {
@@ -227,11 +257,10 @@ export const Sidebar = () => {
   const { t } = useTranslation();
 
   const allNavigation = getNavigation(t, user?.role);
-  // Filter navigation based on user role
-  const userRole = (user?.role || user?.userType)?.toLowerCase();
-  let navigation = userRole ? filterNavigationByRole(allNavigation, userRole) : allNavigation;
+  // For now, show all navigation (we'll implement role filtering later)
+  let navigation = allNavigation;
   // Adjust URLs for specific roles
-  navigation = adjustNavigationForRole(navigation, userRole);
+  navigation = adjustNavigationForRole(navigation, user?.role);
 
   const isCurrentPage = (href) => {
     const currentPath = location.pathname;
@@ -240,7 +269,7 @@ export const Sidebar = () => {
       return true;
     }
     // For vendor/manager roles accessing /manager/front-desk/*, also match /front-desk/* hrefs
-    if ((userRole === 'manager' || userRole === 'vendor') && href.startsWith('/front-desk/')) {
+    if ((user?.role === 'manager' || user?.role === 'vendor') && href.startsWith('/front-desk/')) {
       const managerHref = href.replace('/front-desk/', '/manager/front-desk/');
       return currentPath === managerHref || currentPath.startsWith(managerHref + '/');
     }
