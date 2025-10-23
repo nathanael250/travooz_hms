@@ -60,8 +60,31 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { filterNavigationByRole } from '../config/rolePermissions';
 
-const getNavigation = (t) => [
-  { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+const getNavigation = (t, userRole) => {
+  // Determine dashboard URL based on user role
+  const getDashboardUrl = (role) => {
+    switch (role?.toLowerCase()) {
+      case 'housekeeping':
+        return '/housekeeping/dashboard';
+      case 'receptionist':
+        return '/front-desk/bookings';
+      case 'maintenance':
+        return '/maintenance/dashboard';
+      case 'restaurant':
+        return '/restaurant/tables';
+      case 'inventory':
+        return '/stock/dashboard';
+      case 'accountant':
+        return '/financial/dashboard';
+      case 'manager':
+      case 'vendor':
+      case 'admin':
+      default:
+        return '/dashboard';
+    }
+  };
+
+  return [
   { 
     name: 'Hotel Management', 
     icon: Hotel, 
@@ -94,6 +117,7 @@ const getNavigation = (t) => [
     name: 'Financial Management',
     icon: CreditCard,
     children: [
+      { name: 'Dashboard', href: '/financial/dashboard', icon: Home },
       { name: 'Invoices', href: '/financial/invoices', icon: FileText },
       { name: 'Accounts', href: '/financial/accounts', icon: CreditCard },
       { name: 'Account Linkage', href: '/financial/account-linkage', icon: LinkIcon },
@@ -128,6 +152,7 @@ const getNavigation = (t) => [
     name: 'Housekeeping',
     icon: Sparkles,
     children: [
+      { name: 'Dashboard', href: '/housekeeping/dashboard', icon: Home },
       { name: 'Housekeeping Tasks', href: '/housekeeping/tasks', icon: ListChecks },
     ]
   },
@@ -135,6 +160,7 @@ const getNavigation = (t) => [
     name: 'Staff Dashboard',
     icon: Users,
     children: [
+      { name: 'Dashboard', href: getDashboardUrl(userRole), icon: Home },
       { name: 'My Tasks', href: '/staff/my-tasks', icon: CheckCircle },
     ]
   },
@@ -142,6 +168,7 @@ const getNavigation = (t) => [
     name: 'Maintenance',
     icon: Wrench,
     children: [
+      { name: 'Dashboard', href: '/maintenance/dashboard', icon: Home },
       { name: 'Maintenance Requests', href: '/maintenance/requests', icon: AlertTriangle },
     ]
   },
@@ -161,6 +188,7 @@ const getNavigation = (t) => [
     name: 'Stock Management',
     icon: Boxes,
     children: [
+      { name: 'Dashboard', href: '/stock/dashboard', icon: Home },
       { name: 'Stock Items', href: '/stock/items', icon: Box },
       { name: 'Stock Movements', href: '/stock/movements', icon: TrendingUp },
       { name: 'Suppliers', href: '/stock/suppliers', icon: Truck },
@@ -172,6 +200,7 @@ const getNavigation = (t) => [
   { name: t('navigation.reports'), href: '/reports', icon: BarChart3 },
   { name: t('navigation.settings'), href: '/settings', icon: Settings },
 ];
+};
 
 const adjustNavigationForRole = (navigation, role) => {
   // Create a deep copy to avoid mutating original
@@ -197,11 +226,12 @@ export const Sidebar = () => {
   const { user } = useAuth();
   const { t } = useTranslation();
 
-  const allNavigation = getNavigation(t);
+  const allNavigation = getNavigation(t, user?.role);
   // Filter navigation based on user role
-  let navigation = user?.role ? filterNavigationByRole(allNavigation, user.role) : allNavigation;
+  const userRole = (user?.role || user?.userType)?.toLowerCase();
+  let navigation = userRole ? filterNavigationByRole(allNavigation, userRole) : allNavigation;
   // Adjust URLs for specific roles
-  navigation = adjustNavigationForRole(navigation, user?.role);
+  navigation = adjustNavigationForRole(navigation, userRole);
 
   const isCurrentPage = (href) => {
     const currentPath = location.pathname;
@@ -210,7 +240,7 @@ export const Sidebar = () => {
       return true;
     }
     // For vendor/manager roles accessing /manager/front-desk/*, also match /front-desk/* hrefs
-    if ((user?.role === 'manager' || user?.role === 'vendor') && href.startsWith('/front-desk/')) {
+    if ((userRole === 'manager' || userRole === 'vendor') && href.startsWith('/front-desk/')) {
       const managerHref = href.replace('/front-desk/', '/manager/front-desk/');
       return currentPath === managerHref || currentPath.startsWith(managerHref + '/');
     }

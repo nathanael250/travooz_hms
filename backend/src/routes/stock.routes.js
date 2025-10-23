@@ -547,4 +547,222 @@ router.get('/alerts', async (req, res) => {
   }
 });
 
+// ============================================
+// DASHBOARD & ALERTS ROUTES
+// ============================================
+
+// GET /api/stock/alerts - Low stock alerts
+router.get('/alerts', async (req, res) => {
+  try {
+    const { homestay_id } = req.query;
+    
+    // Use the inventory_alerts view
+    const alerts = await sequelize.query(`
+      SELECT 
+        ia.*,
+        si.unit_cost,
+        si.default_supplier_id,
+        ss.name as supplier_name
+      FROM inventory_alerts ia
+      LEFT JOIN stock_items si ON ia.item_id = si.item_id
+      LEFT JOIN stock_suppliers ss ON si.default_supplier_id = ss.supplier_id
+      WHERE ia.homestay_id = COALESCE(?, ia.homestay_id)
+      ORDER BY 
+        CASE ia.alert_status
+          WHEN 'out_of_stock' THEN 1
+          WHEN 'low_stock' THEN 2
+          WHEN 'warning' THEN 3
+          ELSE 4
+        END,
+        ia.current_quantity ASC
+    `, {
+      replacements: [homestay_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    res.json({
+      success: true,
+      data: alerts
+    });
+  } catch (error) {
+    console.error('Error fetching stock alerts:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching stock alerts', 
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/stock/usage-logs - Usage logs with filtering
+router.get('/usage-logs', async (req, res) => {
+  try {
+    const { 
+      homestay_id, 
+      days = 30, 
+      used_for, 
+      item_id,
+      limit = 50 
+    } = req.query;
+
+    let whereClause = '1=1';
+    const replacements = [];
+
+    if (homestay_id) {
+      whereClause += ' AND sul.homestay_id = ?';
+      replacements.push(homestay_id);
+    }
+
+    if (days) {
+      whereClause += ' AND sul.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)';
+      replacements.push(parseInt(days));
+    }
+
+    if (used_for) {
+      whereClause += ' AND sul.used_for = ?';
+      replacements.push(used_for);
+    }
+
+    if (item_id) {
+      whereClause += ' AND sul.item_id = ?';
+      replacements.push(item_id);
+    }
+
+    const usageLogs = await sequelize.query(`
+      SELECT 
+        sul.*,
+        si.name as item_name,
+        si.category,
+        si.unit,
+        h.name as homestay_name
+      FROM stock_usage_logs sul
+      LEFT JOIN stock_items si ON sul.item_id = si.item_id
+      LEFT JOIN homestays h ON sul.homestay_id = h.homestay_id
+      WHERE ${whereClause}
+      ORDER BY sul.created_at DESC
+      LIMIT ?
+    `, {
+      replacements: [...replacements, parseInt(limit)],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    res.json({
+      success: true,
+      data: usageLogs
+    });
+  } catch (error) {
+    console.error('Error fetching usage logs:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching usage logs', 
+      error: error.message 
+    });
+  }
+});
+
+// POST /api/stock/usage-logs - Create usage log
+router.post('/usage-logs', [
+  body('item_id').isInt().withMessage('Item ID is required'),
+  body('used_for').isIn(['room', 'restaurant', 'maintenance', 'housekeeping', 'laundry', 'general']),
+  body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
+  body('reference_id').optional().isInt(),
+  body('notes').optional()
+], validate, async (req, res) => {
+  try {
+    const usageLog = await StockUsageLog.create({
+      ...req.body,
+      homestay_id: req.user?.assigned_hotel_id || req.body.homestay_id,
+      used_by: req.user?.hms_user_id || req.user?.user_id
+    });
+
+    // Update stock item quantity
+    const item = await StockItem.findByPk(req.body.item_id);
+    if (item) {
+      const newQuantity = item.quantity - req.body.quantity;
+      if (newQuantity < 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Insufficient stock quantity' 
+        });
+      }
+      await item.update({ quantity: newQuantity });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Usage logged successfully',
+      data: usageLog
+    });
+  } catch (error) {
+    console.error('Error creating usage log:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error creating usage log', 
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/stock/dashboard - Dashboard summary data
+router.get('/dashboard', async (req, res) => {
+  try {
+    const { homestay_id } = req.query;
+    const userHomestayId = req.user?.assigned_hotel_id || homestay_id;
+
+    // Get total items count
+    const totalItems = await StockItem.count({
+      where: userHomestayId ? { homestay_id: userHomestayId } : {}
+    });
+
+    // Get low stock count
+    const lowStockCount = await sequelize.query(`
+      SELECT COUNT(*) as count
+      FROM inventory_alerts
+      WHERE homestay_id = COALESCE(?, homestay_id)
+        AND alert_status IN ('low_stock', 'out_of_stock')
+    `, {
+      replacements: [userHomestayId],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // Get total inventory value
+    const totalValue = await sequelize.query(`
+      SELECT SUM(si.quantity * COALESCE(si.unit_cost, 0)) as total_value
+      FROM stock_items si
+      WHERE si.homestay_id = COALESCE(?, si.homestay_id)
+    `, {
+      replacements: [userHomestayId],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // Get monthly usage
+    const monthlyUsage = await sequelize.query(`
+      SELECT SUM(quantity) as total_usage
+      FROM stock_usage_logs
+      WHERE homestay_id = COALESCE(?, homestay_id)
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    `, {
+      replacements: [userHomestayId],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalItems,
+        lowStockCount: lowStockCount[0]?.count || 0,
+        totalValue: totalValue[0]?.total_value || 0,
+        monthlyUsage: monthlyUsage[0]?.total_usage || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching dashboard data', 
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router;

@@ -75,7 +75,7 @@ export const MaintenanceDashboard = () => {
       <div className="bg-gradient-to-r from-orange-600 to-orange-800 p-4 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">Maintenance Dashboard</h1>
+            <h1 className="text-xl font-bold">Maintenance Dashboardssdd</h1>
             <p className="text-orange-100 mt-1 text-sm">
               {currentTime.toLocaleDateString('en-US', {
                 weekday: 'long',

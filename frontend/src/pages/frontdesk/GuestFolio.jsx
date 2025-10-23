@@ -245,23 +245,42 @@ export const GuestFolio = () => {
 
       // Generate invoice first, then print
       toast.info('Generating invoice first...');
-      await handleGenerateInvoice();
       
-      // Wait a moment for invoice generation to complete, then try to print
-      setTimeout(async () => {
-        try {
-          const invoiceResponse = await apiClient.get(`/invoices/booking/${selectedGuest.id}`);
-          if (invoiceResponse.data?.success && invoiceResponse.data?.data) {
-            const invoice = invoiceResponse.data.data;
-            await printInvoicePDF(invoice.invoice_id);
-          } else {
-            toast.error('Failed to generate invoice for printing');
+      try {
+        await handleGenerateInvoice();
+        
+        // Wait a moment for invoice generation to complete, then try to print
+        setTimeout(async () => {
+          try {
+            const invoiceResponse = await apiClient.get(`/invoices/booking/${selectedGuest.id}`);
+            if (invoiceResponse.data?.success && invoiceResponse.data?.data) {
+              const invoice = invoiceResponse.data.data;
+              await printInvoicePDF(invoice.invoice_id);
+            } else {
+              toast.error('Failed to generate invoice for printing');
+            }
+          } catch (error) {
+            console.error('Error fetching generated invoice:', error);
+            toast.error('Failed to open invoice for printing');
           }
-        } catch (error) {
-          console.error('Error fetching generated invoice:', error);
-          toast.error('Failed to open invoice for printing');
+        }, 2000); // Reduced timeout since we handle the error gracefully now
+      } catch (error) {
+        // If invoice generation fails (e.g., already exists), try to print existing invoice
+        if (error.response?.data?.message?.includes('Invoice already exists')) {
+          try {
+            const invoiceResponse = await apiClient.get(`/invoices/booking/${selectedGuest.id}`);
+            if (invoiceResponse.data?.success && invoiceResponse.data?.data) {
+              const invoice = invoiceResponse.data.data;
+              await printInvoicePDF(invoice.invoice_id);
+            }
+          } catch (fetchError) {
+            console.error('Error fetching existing invoice:', fetchError);
+            toast.error('Failed to open invoice for printing');
+          }
+        } else {
+          throw error; // Re-throw other errors
         }
-      }, 3000); // Increased timeout to allow for invoice generation
+      }
     } catch (error) {
       console.error('Error printing folio:', error);
       toast.error('Failed to print folio');
@@ -370,8 +389,16 @@ export const GuestFolio = () => {
         toast.error(response.data?.message || 'Failed to generate invoice');
       }
     } catch (error) {
-      console.error('❌ Error generating invoice:', error);
-      toast.error(error.response?.data?.message || 'Failed to generate invoice');
+      // Handle specific error cases more gracefully
+      if (error.response?.data?.message?.includes('Invoice already exists')) {
+        toast.info('Invoice already exists for this booking. Opening existing invoice...');
+        setShowGenerateInvoiceModal(false);
+        // Fetch the existing invoice for preview
+        await fetchInvoicePreview(selectedGuest.id);
+      } else {
+        console.error('❌ Error generating invoice:', error);
+        toast.error(error.response?.data?.message || 'Failed to generate invoice');
+      }
     } finally {
       setLoadingInvoice(false);
     }

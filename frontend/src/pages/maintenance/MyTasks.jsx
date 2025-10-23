@@ -16,10 +16,11 @@ import {
   Filter,
   Search,
   UserCheck,
-  UserX
+  UserX,
+  Wrench
 } from 'lucide-react';
 
-const HousekeepingTasks = () => {
+const MyTasks = () => {
   const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -30,38 +31,28 @@ const HousekeepingTasks = () => {
   const [acceptNotes, setAcceptNotes] = useState('');
   const [completeData, setCompleteData] = useState({
     notes: '',
-    rating: '',
-    feedback: ''
+    actual_cost: '',
+    completion_notes: ''
   });
 
   useEffect(() => {
-    fetchHousekeepingTasks();
+    fetchMaintenanceTasks();
   }, [statusFilter]);
 
-  const fetchHousekeepingTasks = async () => {
+  const fetchMaintenanceTasks = async () => {
     try {
       setLoading(true);
       const params = statusFilter ? `?status=${statusFilter}` : '';
-      const response = await apiClient.get(`/guest-requests/my-tasks${params}`);
+      const response = await apiClient.get(`/maintenance/my-tasks${params}`);
       
-      if (response.data.success) {
-        // Filter only housekeeping tasks
-        const housekeepingTasks = response.data.data.tasks.filter(task => 
-          task.request_type === 'housekeeping' || 
-          task.request_type === 'laundry' ||
-          task.request_type === 'cleaning' ||
-          task.request_type === 'room_service' ||
-          task.request_type === 'extra_towels' ||
-          task.request_type === 'extra_pillows' ||
-          task.request_type === 'ironing'
-        );
-        setTasks(housekeepingTasks);
+      if (response.data) {
+        setTasks(response.data);
       } else {
-        toast.error('Failed to fetch housekeeping tasks');
+        toast.error('Failed to fetch maintenance tasks');
       }
     } catch (error) {
-      console.error('Error fetching housekeeping tasks:', error);
-      toast.error('Failed to fetch housekeeping tasks');
+      console.error('Error fetching maintenance tasks:', error);
+      toast.error('Failed to fetch maintenance tasks');
     } finally {
       setLoading(false);
     }
@@ -71,15 +62,16 @@ const HousekeepingTasks = () => {
     if (!selectedTask) return;
 
     try {
-      const response = await apiClient.patch(`/guest-requests/${selectedTask.request_id}/accept`, {
+      const response = await apiClient.patch(`/maintenance/requests/${selectedTask.request_id}`, {
+        status: 'approved',
         notes: acceptNotes
       });
 
-      if (response.data.success) {
+      if (response.data) {
         toast.success('Task accepted successfully');
         setShowAcceptModal(false);
         setAcceptNotes('');
-        await fetchHousekeepingTasks();
+        await fetchMaintenanceTasks();
       } else {
         toast.error(response.data.message || 'Failed to accept task');
       }
@@ -93,17 +85,18 @@ const HousekeepingTasks = () => {
     if (!selectedTask) return;
 
     try {
-      const response = await apiClient.patch(`/guest-requests/${selectedTask.request_id}/complete`, {
-        notes: completeData.notes,
-        rating: completeData.rating ? parseInt(completeData.rating) : null,
-        feedback: completeData.feedback
+      const response = await apiClient.patch(`/maintenance/requests/${selectedTask.request_id}`, {
+        status: 'completed',
+        completion_notes: completeData.completion_notes,
+        actual_cost: completeData.actual_cost,
+        notes: completeData.notes
       });
 
-      if (response.data.success) {
+      if (response.data) {
         toast.success('Task completed successfully');
         setShowCompleteModal(false);
-        setCompleteData({ notes: '', rating: '', feedback: '' });
-        await fetchHousekeepingTasks();
+        setCompleteData({ notes: '', actual_cost: '', completion_notes: '' });
+        await fetchMaintenanceTasks();
       } else {
         toast.error(response.data.message || 'Failed to complete task');
       }
@@ -117,7 +110,7 @@ const HousekeepingTasks = () => {
     switch (status) {
       case 'pending':
         return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'acknowledged':
+      case 'approved':
         return <AlertCircle className="w-4 h-4 text-blue-500" />;
       case 'in_progress':
         return <RefreshCw className="w-4 h-4 text-orange-500" />;
@@ -134,7 +127,7 @@ const HousekeepingTasks = () => {
     switch (status) {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
-      case 'acknowledged':
+      case 'approved':
         return 'bg-blue-100 text-blue-800';
       case 'in_progress':
         return 'bg-orange-100 text-orange-800';
@@ -153,7 +146,7 @@ const HousekeepingTasks = () => {
         return 'bg-red-100 text-red-800';
       case 'high':
         return 'bg-orange-100 text-orange-800';
-      case 'normal':
+      case 'medium':
         return 'bg-blue-100 text-blue-800';
       case 'low':
         return 'bg-gray-100 text-gray-800';
@@ -162,17 +155,18 @@ const HousekeepingTasks = () => {
     }
   };
 
-  const getRequestTypeLabel = (type) => {
-    const typeMap = {
-      'housekeeping': 'Housekeeping',
-      'laundry': 'Laundry Service',
-      'cleaning': 'Cleaning Service',
-      'room_service': 'Room Service',
-      'extra_towels': 'Extra Towels',
-      'extra_pillows': 'Extra Pillows',
-      'ironing': 'Ironing Service'
+  const getCategoryLabel = (category) => {
+    const categoryMap = {
+      'plumbing': 'Plumbing',
+      'electrical': 'Electrical',
+      'hvac': 'HVAC',
+      'furniture': 'Furniture',
+      'appliance': 'Appliance',
+      'structural': 'Structural',
+      'safety': 'Safety',
+      'other': 'Other'
     };
-    return typeMap[type] || type.replace('_', ' ').toUpperCase();
+    return categoryMap[category] || category.replace('_', ' ').toUpperCase();
   };
 
   const canAcceptTask = (task) => {
@@ -196,10 +190,10 @@ const HousekeepingTasks = () => {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Housekeeping Tasks
+          Maintenance Tasks
         </h1>
         <p className="text-gray-600">
-          Guest service requests assigned to housekeeping staff
+          Maintenance requests assigned to maintenance staff
         </p>
       </div>
 
@@ -214,14 +208,14 @@ const HousekeepingTasks = () => {
           >
             <option value="">All Tasks</option>
             <option value="pending">Pending</option>
-            <option value="acknowledged">Acknowledged</option>
+            <option value="approved">Approved</option>
             <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
         <button
-          onClick={fetchHousekeepingTasks}
+          onClick={fetchMaintenanceTasks}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
         >
           <RefreshCw className="w-4 h-4" />
@@ -233,8 +227,8 @@ const HousekeepingTasks = () => {
       {tasks.length === 0 ? (
         <div className="text-center py-12">
           <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No housekeeping tasks assigned</h3>
-          <p className="text-gray-500">You don't have any housekeeping tasks assigned to you at the moment.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No maintenance tasks assigned</h3>
+          <p className="text-gray-500">You don't have any maintenance tasks assigned to you at the moment.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -244,7 +238,7 @@ const HousekeepingTasks = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {getRequestTypeLabel(task.request_type)}
+                      {getCategoryLabel(task.category)}
                     </h3>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                       {getStatusIcon(task.status)}
@@ -258,13 +252,18 @@ const HousekeepingTasks = () => {
                   <div className="flex items-center gap-4 text-sm text-gray-500">
                     <div className="flex items-center gap-1">
                       <User className="w-4 h-4" />
-                      <span>{task.guest_name}</span>
+                      <span>{task.reportedByUser?.name || 'System'}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      <span>{task.requested_time ? new Date(task.requested_time).toLocaleDateString() : 'Not specified'}</span>
+                      <span>{task.reported_date ? new Date(task.reported_date).toLocaleDateString() : 'Not specified'}</span>
                     </div>
-                    {/* Additional charges hidden from housekeeping staff for privacy */}
+                    {task.estimated_cost && (
+                      <div className="flex items-center gap-1">
+                        <DollarSign className="w-4 h-4" />
+                        <span>RWF {parseFloat(task.estimated_cost).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -273,16 +272,16 @@ const HousekeepingTasks = () => {
               {task.notes && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-700">
-                    <strong>Guest Notes:</strong> {task.notes}
+                    <strong>Notes:</strong> {task.notes}
                   </p>
                 </div>
               )}
 
-              {/* Staff Notes */}
-              {task.staff_notes && (
+              {/* Room Information */}
+              {task.room && (
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-700">
-                    <strong>Staff Notes:</strong> {task.staff_notes}
+                    <strong>Room:</strong> {task.room.unit_number} ({task.room.room_type})
                   </p>
                 </div>
               )}
@@ -323,9 +322,9 @@ const HousekeepingTasks = () => {
       {showAcceptModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Accept Housekeeping Task</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Accept Maintenance Task</h3>
             <p className="text-gray-600 mb-4">
-              Are you ready to work on this housekeeping task?
+              Are you ready to work on this maintenance task?
             </p>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -361,15 +360,28 @@ const HousekeepingTasks = () => {
       {showCompleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Housekeeping Task</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Maintenance Task</h3>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Actual Cost (RWF)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={completeData.actual_cost}
+                  onChange={(e) => setCompleteData(prev => ({ ...prev, actual_cost: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter actual cost..."
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Completion Notes
                 </label>
                 <textarea
-                  value={completeData.notes}
-                  onChange={(e) => setCompleteData(prev => ({ ...prev, notes: e.target.value }))}
+                  value={completeData.completion_notes}
+                  onChange={(e) => setCompleteData(prev => ({ ...prev, completion_notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   rows={3}
                   placeholder="Describe what was done..."
@@ -377,31 +389,14 @@ const HousekeepingTasks = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Quality Rating (1-5)
-                </label>
-                <select
-                  value={completeData.rating}
-                  onChange={(e) => setCompleteData(prev => ({ ...prev, rating: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select rating</option>
-                  <option value="1">1 - Poor</option>
-                  <option value="2">2 - Fair</option>
-                  <option value="3">3 - Good</option>
-                  <option value="4">4 - Very Good</option>
-                  <option value="5">5 - Excellent</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Feedback
+                  Additional Notes
                 </label>
                 <textarea
-                  value={completeData.feedback}
-                  onChange={(e) => setCompleteData(prev => ({ ...prev, feedback: e.target.value }))}
+                  value={completeData.notes}
+                  onChange={(e) => setCompleteData(prev => ({ ...prev, notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   rows={2}
-                  placeholder="Any additional feedback..."
+                  placeholder="Any additional notes..."
                 />
               </div>
             </div>
@@ -426,4 +421,4 @@ const HousekeepingTasks = () => {
   );
 };
 
-export default HousekeepingTasks;
+export default MyTasks;

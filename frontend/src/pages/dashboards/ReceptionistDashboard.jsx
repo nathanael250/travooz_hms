@@ -57,7 +57,7 @@ export const ReceptionistDashboard = () => {
       setLoading(true);
       
       // Fetch upcoming arrivals
-      const arrivalsResponse = await apiClient.get('/receptionist/upcoming-arrivals');
+      const arrivalsResponse = await apiClient.get('/front-desk/upcoming-arrivals');
       
       // Fetch bookings for today and tomorrow to separate arrivals and departures
       const today = new Date();
@@ -69,7 +69,7 @@ export const ReceptionistDashboard = () => {
       const todayStr = today.toISOString().split('T')[0];
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
       
-      const bookingsResponse = await apiClient.get('/receptionist/bookings', {
+      const bookingsResponse = await apiClient.get('/room-bookings', {
         params: {
           start_date: todayStr,
           end_date: tomorrowStr,
@@ -78,7 +78,7 @@ export const ReceptionistDashboard = () => {
       });
 
       if (arrivalsResponse.data.success && bookingsResponse.data.success) {
-        const bookings = bookingsResponse.data.data || [];
+        const bookings = bookingsResponse.data.data?.bookings || [];
         
         // Separate arrivals and departures
         const todayArrivals = bookings.filter(b => 

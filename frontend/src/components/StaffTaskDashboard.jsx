@@ -14,6 +14,7 @@ import {
   Flag
 } from 'lucide-react';
 import apiClient from '../services/apiClient';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * STAFF TASK DASHBOARD
@@ -26,6 +27,7 @@ import apiClient from '../services/apiClient';
  */
 
 const StaffTaskDashboard = ({ staffRole = 'housekeeping' }) => {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -289,6 +291,7 @@ const StaffTaskDashboard = ({ staffRole = 'housekeeping' }) => {
               formatDate={formatDate}
               getTimeAgo={getTimeAgo}
               actionLoading={actionLoading[task.request_id]}
+              user={user}
             />
           ))
         )}
@@ -352,7 +355,8 @@ const TaskCard = ({
   getPriorityColor,
   formatDate,
   getTimeAgo,
-  actionLoading
+  actionLoading,
+  user
 }) => {
   const statusBadge = getStatusBadge(task.status);
 
@@ -375,7 +379,6 @@ const TaskCard = ({
           </div>
           <p className="text-sm text-gray-700 mb-1">{task.description}</p>
           <div className="flex items-center gap-4 text-xs text-gray-600 mt-2">
-            <span>🏨 {task.homestay_name}</span>
             <span>👤 {task.guest_name}</span>
             <span>⏰ {getTimeAgo(task.requested_time)}</span>
           </div>
@@ -426,11 +429,11 @@ const TaskCard = ({
             </div>
           )}
 
-          {/* Additional Charges */}
-          {task.additional_charges > 0 && (
+          {/* Additional Charges - Only visible to roles that should see financial information */}
+          {task.additional_charges && parseFloat(task.additional_charges) > 0 && ['manager', 'vendor', 'admin', 'receptionist', 'accountant'].includes(user?.role?.toLowerCase()) && (
             <div className="bg-orange-50 border border-orange-200 rounded p-3">
               <p className="text-sm font-semibold text-orange-700">
-                💰 Additional Charge: ${task.additional_charges.toFixed(2)}
+                💰 Additional Charge: RWF {parseFloat(task.additional_charges).toFixed(2)}
               </p>
             </div>
           )}

@@ -18,7 +18,7 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-// Get all rooms (public)
+// Get all room types with availability counts (public)
 router.get('/', async (req, res) => {
   try {
     const { homestay_id, status, room_type_id } = req.query;
@@ -26,49 +26,53 @@ router.get('/', async (req, res) => {
     let whereConditions = [];
     let queryParams = [];
     
-    // Build base WHERE clause without parameters
-    let whereClause = 'WHERE ri.inventory_id IS NOT NULL';
+    // Build base WHERE clause
+    let whereClause = '';
     
     if (homestay_id) {
-      whereClause += ' AND rt.homestay_id = ?';
+      whereConditions.push('rt.homestay_id = ?');
       queryParams.push(homestay_id);
     }
     
     if (status) {
-      whereClause += ' AND ri.status = ?';
+      whereConditions.push('ri.status = ?');
       queryParams.push(status);
     }
     
     if (room_type_id) {
-      whereClause += ' AND ri.room_type_id = ?';
+      whereConditions.push('rt.room_type_id = ?');
       queryParams.push(room_type_id);
+    }
+
+    if (whereConditions.length > 0) {
+      whereClause = 'WHERE ' + whereConditions.join(' AND ');
     }
 
     const query = `
       SELECT 
-        ri.inventory_id as room_id,
-        ri.room_type_id,
-        ri.unit_number as room_number,
-        ri.floor as floor_number,
-        ri.status,
-        ri.last_cleaned,
-        ri.last_maintenance,
-        ri.notes,
-        ri.created_at,
-        ri.updated_at,
-        rt.name as room_type_name,
-        rt.description as room_type_description,
-        rt.price as price_per_night,
-        rt.max_people,
+        rt.room_type_id,
+        rt.name as room_type,
+        rt.description,
+        rt.price as base_price,
+        rt.max_people as max_occupancy,
         rt.size_sqm,
         'RWF' as currency,
         rt.homestay_id,
-        h.name as homestay_name
-      FROM room_inventory ri
-      LEFT JOIN room_types rt ON ri.room_type_id = rt.room_type_id
+        h.name as homestay_name,
+        COUNT(ri.inventory_id) as total_items,
+        COUNT(CASE WHEN ri.status = 'available' THEN 1 END) as available_count,
+        COUNT(CASE WHEN ri.status = 'occupied' THEN 1 END) as occupied_count,
+        COUNT(CASE WHEN ri.status = 'reserved' THEN 1 END) as reserved_count,
+        COUNT(CASE WHEN ri.status = 'maintenance' THEN 1 END) as maintenance_count,
+        COUNT(CASE WHEN ri.status = 'out_of_order' THEN 1 END) as out_of_order_count,
+        COUNT(CASE WHEN ri.status = 'cleaning' THEN 1 END) as cleaning_count
+      FROM room_types rt
+      LEFT JOIN room_inventory ri ON rt.room_type_id = ri.room_type_id
       LEFT JOIN homestays h ON rt.homestay_id = h.homestay_id
       ${whereClause}
-      ORDER BY ri.inventory_id
+      GROUP BY rt.room_type_id, rt.name, rt.description, rt.price, rt.max_people, 
+               rt.size_sqm, rt.homestay_id, h.name
+      ORDER BY h.name, rt.name
     `;
     
     const results = await sequelize.query(query, {
@@ -76,15 +80,33 @@ router.get('/', async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
+    // Get images for each room type
+    const roomTypesWithImages = await Promise.all(
+      results.map(async (roomType) => {
+        const images = await sequelize.query(
+          "SELECT * FROM room_images WHERE room_type_id = ? ORDER BY image_order",
+          {
+            replacements: [roomType.room_type_id],
+            type: sequelize.QueryTypes.SELECT,
+          }
+        );
+        
+        return {
+          ...roomType,
+          images: images
+        };
+      })
+    );
+
     res.json({
       success: true,
-      data: { rooms: results }
+      data: { room_types: roomTypesWithImages }
     });
   } catch (error) {
-    console.error('Fetch rooms error:', error);
+    console.error('Fetch room types error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch rooms',
+      message: 'Failed to fetch room types',
       error: error.message
     });
   }
@@ -133,9 +155,23 @@ router.get('/:id', async (req, res) => {
       });
     }
 
+    // Get images for the room type
+    const images = await sequelize.query(
+      "SELECT * FROM room_images WHERE room_type_id = ? ORDER BY image_order",
+      {
+        replacements: [room.room_type_id],
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
     res.json({
       success: true,
-      data: { room }
+      data: { 
+        room: {
+          ...room,
+          images: images
+        }
+      }
     });
   } catch (error) {
     console.error('Fetch room error:', error);

@@ -9,7 +9,6 @@ const getHomestays = async (req, res) => {
     const { page = 1, limit = 10, search, status } = req.query;
     const offset = (page - 1) * limit;
 
-
     // Public endpoint: show all homestays, no user-based filtering
     const whereClause = {};
 
@@ -34,9 +33,27 @@ const getHomestays = async (req, res) => {
       order: [["created_at", "DESC"]],
     });
 
+    // Get images for each homestay
+    const homestaysWithImages = await Promise.all(
+      homestays.map(async (homestay) => {
+        const images = await sequelize.query(
+          "SELECT * FROM homestay_images WHERE homestay_id = ? ORDER BY image_order",
+          {
+            replacements: [homestay.homestay_id],
+            type: sequelize.QueryTypes.SELECT,
+          }
+        );
+        
+        return {
+          ...homestay.toJSON(),
+          images: images
+        };
+      })
+    );
+
     res.json({
       success: true,
-      homestays,
+      homestays: homestaysWithImages,
       pagination: {
         total: count,
         page: parseInt(page),

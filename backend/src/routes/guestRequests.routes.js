@@ -901,4 +901,131 @@ router.patch('/:request_id/assign', authMiddleware, async (req, res) => {
   }
 });
 
+// Update guest request (general update endpoint for notes, escalation, etc.)
+router.patch('/:request_id/update', authMiddleware, async (req, res) => {
+  try {
+    const { request_id } = req.params;
+    const { 
+      status, 
+      staff_notes, 
+      escalated_to, 
+      escalation_note,
+      notes 
+    } = req.body;
+    const user = req.user;
+
+    // Verify the request exists and belongs to the user's hotel
+    const existingRequest = await sequelize.query(`
+      SELECT gr.request_id, gr.status, gr.staff_notes
+      FROM guest_requests gr
+      INNER JOIN bookings b ON gr.booking_id = b.booking_id
+      INNER JOIN room_bookings rb ON b.booking_id = rb.booking_id
+      WHERE gr.request_id = ? AND rb.homestay_id = ?
+    `, {
+      replacements: [request_id, user.assigned_hotel_id],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (existingRequest.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Guest request not found'
+      });
+    }
+
+    // Prepare update fields
+    let updateFields = [];
+    let replacements = [];
+
+    if (status !== undefined) {
+      const validStatuses = ['pending', 'acknowledged', 'in_progress', 'completed', 'cancelled', 'escalated'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid status. Must be one of: ' + validStatuses.join(', ')
+        });
+      }
+      updateFields.push('status = ?');
+      replacements.push(status);
+    }
+
+    if (staff_notes !== undefined) {
+      // Append to existing notes or create new
+      const existingNotes = existingRequest[0].staff_notes || '';
+      const newNotes = existingNotes ? 
+        `${existingNotes}\n${new Date().toISOString()}: ${staff_notes}` : 
+        `${new Date().toISOString()}: ${staff_notes}`;
+      
+      updateFields.push('staff_notes = ?');
+      replacements.push(newNotes);
+    }
+
+    if (notes !== undefined) {
+      // This is for general notes (alias for staff_notes)
+      const existingNotes = existingRequest[0].staff_notes || '';
+      const newNotes = existingNotes ? 
+        `${existingNotes}\n${new Date().toISOString()}: ${notes}` : 
+        `${new Date().toISOString()}: ${notes}`;
+      
+      updateFields.push('staff_notes = ?');
+      replacements.push(newNotes);
+    }
+
+    if (escalated_to !== undefined) {
+      updateFields.push('escalated_to = ?');
+      replacements.push(escalated_to);
+    }
+
+    if (escalation_note !== undefined) {
+      updateFields.push('escalation_note = ?');
+      replacements.push(escalation_note);
+      
+      // Also add escalation timestamp
+      updateFields.push('escalated_at = NOW()');
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid fields to update'
+      });
+    }
+
+    // Add request_id to replacements
+    replacements.push(request_id);
+
+    // Update the request
+    await sequelize.query(`
+      UPDATE guest_requests 
+      SET ${updateFields.join(', ')}
+      WHERE request_id = ?
+    `, {
+      replacements: replacements,
+      type: sequelize.QueryTypes.UPDATE
+    });
+
+    res.json({
+      success: true,
+      message: 'Guest request updated successfully',
+      data: {
+        request_id,
+        updated_fields: {
+          status,
+          staff_notes: staff_notes || notes,
+          escalated_to,
+          escalation_note
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating guest request:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update guest request',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

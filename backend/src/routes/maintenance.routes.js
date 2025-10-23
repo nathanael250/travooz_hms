@@ -678,4 +678,57 @@ router.delete('/assets/:asset_id', [
   }
 });
 
+// GET /api/maintenance/my-tasks - Get maintenance requests assigned to current user
+router.get('/my-tasks', async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const { status } = req.query;
+    const whereClause = { assigned_to: req.user.user_id };
+    
+    if (status) {
+      whereClause.status = status;
+    } else {
+      // Default: show only active tasks
+      whereClause.status = { [Op.notIn]: ['completed', 'cancelled'] };
+    }
+
+    const requests = await MaintenanceRequest.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Room,
+          as: 'room',
+          attributes: ['inventory_id', 'unit_number', 'room_type'],
+          required: false
+        },
+        {
+          model: Homestay,
+          as: 'homestay',
+          attributes: ['homestay_id', 'name', 'address'],
+          required: false
+        },
+        {
+          model: User,
+          as: 'reportedByUser',
+          attributes: ['user_id', 'name'],
+          required: false
+        }
+      ],
+      order: [
+        ['priority', 'DESC'],
+        ['reported_date', 'ASC']
+      ]
+    });
+
+    res.json(requests);
+  } catch (error) {
+    console.error('Error fetching my maintenance tasks:', error);
+    // Return empty array instead of error to prevent frontend crashes
+    res.json([]);
+  }
+});
+
 module.exports = router;

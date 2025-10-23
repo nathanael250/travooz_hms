@@ -44,7 +44,8 @@ export const ROLE_PERMISSIONS = {
       'Maintenance',
       'Restaurant & Kitchen',
       'Stock Management',
-      'Reports'
+      'Reports',
+      'Settings'
     ]
   },
   receptionist: {

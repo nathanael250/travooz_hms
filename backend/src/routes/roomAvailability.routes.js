@@ -131,11 +131,29 @@ router.get('/available-hotels', async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
+    // Get images for each hotel
+    const hotelsWithImages = await Promise.all(
+      results.map(async (hotel) => {
+        const images = await sequelize.query(
+          "SELECT * FROM homestay_images WHERE homestay_id = ? ORDER BY image_order",
+          {
+            replacements: [hotel.homestay_id],
+            type: sequelize.QueryTypes.SELECT,
+          }
+        );
+        
+        return {
+          ...hotel,
+          images: images
+        };
+      })
+    );
+
     res.json({
       success: true,
       data: {
-        hotels: results,
-        count: results.length,
+        hotels: hotelsWithImages,
+        count: hotelsWithImages.length,
         search_criteria: {
           location_id,
           start_date,
@@ -531,8 +549,8 @@ router.post('/check-availability', [
 });
 
 /**
- * Get rooms list for availability management
- * Returns all rooms with their current status
+ * Get room types with availability counts
+ * Returns room types grouped with counts of available items for each type
  */
 router.get('/rooms', async (req, res) => {
   try {
@@ -557,27 +575,26 @@ router.get('/rooms', async (req, res) => {
 
     const query = `
       SELECT 
-        rav.inventory_id,
-        rav.room_type_id,
-        rav.room_type,
-        rav.unit_number as room_number,
-        rav.floor,
-        rav.room_status,
-        rav.current_status,
-        rav.check_in_date,
-        rav.check_out_date,
+        rt.room_type_id,
+        rt.name as room_type,
+        rt.description,
+        rt.price as base_price,
+        rt.max_people as max_occupancy,
         rt.homestay_id,
         h.name as homestay_name,
-        rt.price as base_price,
-        rt.max_people as max_occupancy
-      FROM room_availability_view rav
-      LEFT JOIN room_types rt ON rav.room_type_id = rt.room_type_id
+        COUNT(rav.inventory_id) as total_items,
+        COUNT(CASE WHEN rav.current_status = 'available' THEN 1 END) as available_count,
+        COUNT(CASE WHEN rav.current_status = 'occupied' THEN 1 END) as occupied_count,
+        COUNT(CASE WHEN rav.current_status = 'reserved' THEN 1 END) as reserved_count,
+        COUNT(CASE WHEN rav.current_status = 'maintenance' THEN 1 END) as maintenance_count,
+        COUNT(CASE WHEN rav.current_status = 'out_of_order' THEN 1 END) as out_of_order_count
+      FROM room_types rt
+      LEFT JOIN room_availability_view rav ON rt.room_type_id = rav.room_type_id
       LEFT JOIN homestays h ON rt.homestay_id = h.homestay_id
       ${whereClause}
-      GROUP BY rav.inventory_id, rav.room_type_id, rav.room_type, rav.unit_number, 
-               rav.floor, rav.room_status, rav.current_status, rav.check_in_date, 
-               rav.check_out_date, rt.homestay_id, h.name, rt.price, rt.max_people
-      ORDER BY h.name, rav.room_type, rav.unit_number
+      GROUP BY rt.room_type_id, rt.name, rt.description, rt.price, rt.max_people, 
+               rt.homestay_id, h.name
+      ORDER BY h.name, rt.name
     `;
     
     const results = await sequelize.query(query, {
@@ -587,13 +604,13 @@ router.get('/rooms', async (req, res) => {
 
     res.json({
       success: true,
-      data: { rooms: results }
+      data: { room_types: results }
     });
   } catch (error) {
-    console.error('Fetch rooms error:', error);
+    console.error('Fetch room types error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch rooms',
+      message: 'Failed to fetch room types',
       error: error.message
     });
   }

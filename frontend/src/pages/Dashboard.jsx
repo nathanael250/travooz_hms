@@ -304,67 +304,69 @@ export const Dashboard = () => {
   };
 
   return (
-    <div>
+    <div className="h-full bg-gray-50">
       {/* Header with Property Overview */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 text-white">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Property Info */}
-          <div>
-            <h1 className="text-xl font-bold">{data.property.name}</h1>
-            <div className="flex items-center gap-2 mt-1 text-blue-100">
-              <MapPin className="h-3 w-3" />
-              <span className="text-sm">{data.property.location}</span>
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+            {/* Property Info */}
+            <div className="col-span-1">
+              <h1 className="text-lg sm:text-xl font-bold">{data.property.name}</h1>
+              <div className="flex items-center gap-2 mt-1 text-blue-100">
+                <MapPin className="h-3 w-3" />
+                <span className="text-xs sm:text-sm">{data.property.location}</span>
+              </div>
+              <p className="text-blue-100 mt-1 text-xs">
+                {currentTime.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })} • {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              </p>
             </div>
-            <p className="text-blue-100 mt-1 text-xs">
-              {currentTime.toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })} • {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          </div>
-          
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="text-2xl font-bold">{data.property.occupancyRate}%</div>
-              <div className="text-blue-100 text-xs">Occupancy Today</div>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 col-span-1">
+              <div>
+                <div className="text-xl sm:text-2xl font-bold">{data.property.occupancyRate}%</div>
+                <div className="text-blue-100 text-xs">Occupancy Today</div>
+              </div>
+              <div>
+                <div className="text-xl sm:text-2xl font-bold">RWF {data.property.revenueToday.toLocaleString()}</div>
+                <div className="text-blue-100 text-xs">Revenue</div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold">RWF {data.property.revenueToday.toLocaleString()}</div>
-              <div className="text-blue-100 text-xs">Revenue</div>
-            </div>
-          </div>
-          
-          {/* Room Overview */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="font-semibold text-base">{data.property.totalRooms}</div>
-              <div className="text-blue-100 text-xs">Total Rooms</div>
-            </div>
-            <div>
-              <div className="font-semibold text-base">{data.property.availableRooms}</div>
-              <div className="text-blue-100 text-xs">Available</div>
-            </div>
-            <div>
-              <div className="font-semibold text-base">{data.property.activeStaff}</div>
-              <div className="text-blue-100 text-xs">Staff on Duty</div>
-            </div>
-            <div>
-              <div className="font-semibold text-base">{data.property.pendingRequests}</div>
-              <div className="text-blue-100 text-xs">Pending Requests</div>
+
+            {/* Room Overview */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 text-sm col-span-1 sm:col-span-2 lg:col-span-1">
+              <div>
+                <div className="font-semibold text-base">{data.property.totalRooms}</div>
+                <div className="text-blue-100 text-xs">Total Rooms</div>
+              </div>
+              <div>
+                <div className="font-semibold text-base">{data.property.availableRooms}</div>
+                <div className="text-blue-100 text-xs">Available</div>
+              </div>
+              <div>
+                <div className="font-semibold text-base">{data.property.activeStaff}</div>
+                <div className="text-blue-100 text-xs">Staff on Duty</div>
+              </div>
+              <div>
+                <div className="font-semibold text-base">{data.property.pendingRequests}</div>
+                <div className="text-blue-100 text-xs">Pending Requests</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Content Container with Padding */}
-      <div className="p-4 space-y-6 bg-gray-50">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Booking Summary Section */}
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Booking Overview</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3 sm:mb-4 uppercase tracking-wide">Booking Overview</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         <StatCard
           title="New Bookings Today"
           value={data.bookings.newToday}
@@ -399,14 +401,14 @@ export const Dashboard = () => {
         </div>
 
         {/* Analytics & Charts Section */}
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4 sm:mb-6 uppercase tracking-wide flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics & Insights
           </h2>
-          
+
           {/* Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
             
             {/* 1. Booking Trends Chart */}
             <div className="bg-gray-50 p-4 rounded-lg">
@@ -446,7 +448,7 @@ export const Dashboard = () => {
               </ResponsiveContainer>
             </div>
 
-            {/* 3. Revenue Breakdown Chart */}
+          {/* 3. Revenue Breakdown Chart */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <RwfIcon className="h-4 w-4 text-green-600" />
@@ -526,7 +528,7 @@ export const Dashboard = () => {
         </div>
 
       {/* Room Status & Financial Snapshot Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Room Status */}
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -591,10 +593,10 @@ export const Dashboard = () => {
       </div>
 
       {/* Main Content Grid - 3 Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         
         {/* Left Column */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Guest Activity Feed */}
           <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
             <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -831,25 +833,26 @@ export const Dashboard = () => {
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Stock Summary Section */}
       <div className="bg-white rounded-lg shadow-sm border-2 border-purple-200">
-        <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 border-b border-purple-200">
-          <div className="flex items-center justify-between">
+        <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-3 sm:p-4 border-b border-purple-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-purple-600" />
-              <h2 className="text-base font-semibold text-gray-900 uppercase tracking-wide">Inventory Stock Summary</h2>
+              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
+              <h2 className="text-sm sm:text-base font-semibold text-gray-900 uppercase tracking-wide">Inventory Stock Summary</h2>
             </div>
-            <button className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-white hover:bg-purple-50 rounded-lg border border-purple-200">
+            <button className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-white hover:bg-purple-50 rounded-lg border border-purple-200 whitespace-nowrap">
               View Full Inventory →
             </button>
           </div>
         </div>
-        
-        <div className="p-4">
+
+        <div className="p-4 sm:p-6">
           {/* Overview Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
               <div className="flex items-center gap-2 mb-1">
                 <RwfIcon className="h-4 w-4 text-purple-600" />
@@ -884,9 +887,9 @@ export const Dashboard = () => {
           </div>
 
           {/* Category Breakdown & Item List */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Category Breakdown */}
-            <div className="lg:col-span-1">
+            <div className="xl:col-span-1">
               <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-purple-600" />
                 Stock by Category
@@ -912,14 +915,14 @@ export const Dashboard = () => {
             </div>
 
             {/* Item List */}
-            <div className="lg:col-span-2">
+            <div className="xl:col-span-2">
               <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-purple-600" />
                 Recent Stock Items
               </h3>
               <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <table className="w-full text-xs sm:text-sm min-w-[600px]">
                     <thead className="bg-gray-100 border-b border-gray-200">
                       <tr>
                         <th className="text-left py-2 px-3 text-xs font-semibold text-gray-700">Item</th>
@@ -975,7 +978,6 @@ export const Dashboard = () => {
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );

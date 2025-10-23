@@ -81,9 +81,9 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       setLoading(false);
       
-      // All users go to dashboard (role-based menu filtering handles the rest)
-      console.log('Login successful, navigating to dashboard');
-      navigate('/dashboard', { replace: true });
+      // Navigate to root - RoleBasedRedirect will handle role-specific routing
+      console.log('Login successful, navigating to root for role-based redirect');
+      navigate('/', { replace: true });
       
       return { success: true };
     } catch (error) {
@@ -107,9 +107,9 @@ export const AuthProvider = ({ children }) => {
       setUser(newUser);
       setLoading(false);
       
-      // All users go to dashboard (role-based menu filtering handles the rest)
-      console.log('Registration successful, navigating to dashboard');
-      navigate('/dashboard', { replace: true });
+      // Navigate to root - RoleBasedRedirect will handle role-specific routing
+      console.log('Registration successful, navigating to root for role-based redirect');
+      navigate('/', { replace: true });
       
       return { success: true };
     } catch (error) {

@@ -273,6 +273,7 @@ async function createInvoice(params) {
         booking_id,
         invoice_number,
         invoice_date,
+        invoce_logo,
         due_date,
         subtotal,
         tax_amount,
@@ -287,21 +288,22 @@ async function createInvoice(params) {
         generated_by,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `, {
       replacements: [
         bookingId,
         invoiceNumber,
         invoiceDate,
+        '', // invoce_logo - empty string as default
         dueDate,
         subtotal,
         taxAmount,
         serviceCharge,
         discountAmount,
         totalAmount,
-        0,
-        totalAmount,
-        'draft',
+        0, // amount_paid
+        totalAmount, // balance_due
+        'draft', // status
         paymentTerms,
         notes,
         generatedBy
@@ -389,7 +391,10 @@ async function createInvoice(params) {
     };
 
   } catch (error) {
-    await t.rollback();
+    // Only rollback if transaction is still active
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error('Error creating invoice:', error);
     throw error;
   }

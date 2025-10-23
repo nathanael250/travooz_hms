@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import apiClient from '../../services/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   CheckCircle,
   Clock,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 const StaffDashboard = () => {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [staff, setStaff] = useState(null);
@@ -241,7 +243,8 @@ const StaffDashboard = () => {
                       <Calendar className="w-4 h-4" />
                       <span>{task.requested_time ? new Date(task.requested_time).toLocaleDateString() : 'Not specified'}</span>
                     </div>
-                    {task.additional_charges > 0 && (
+                    {/* Show charges only for roles that should see financial information */}
+                    {task.additional_charges > 0 && ['manager', 'vendor', 'admin', 'receptionist', 'accountant'].includes(user?.role?.toLowerCase()) && (
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-4 h-4" />
                         <span>RWF {parseFloat(task.additional_charges).toLocaleString()}</span>

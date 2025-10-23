@@ -43,7 +43,16 @@ apiClient.interceptors.response.use(
     const url = error.config?.url;
     const message = error.response?.data?.message || error.message;
     
-    console.error('❌ API Error:', method, url, 'Status:', status, 'Message:', message);
+    // Suppress verbose logging for common expected errors
+    const suppressLogging = (
+      message?.includes('Invoice already exists') ||
+      message?.includes('No invoice found for this booking') ||
+      (status === 404 && url?.includes('/invoices/booking/'))
+    );
+    
+    if (!suppressLogging) {
+      console.error('❌ API Error:', method, url, 'Status:', status, 'Message:', message);
+    }
     
     // Special handling for 401 errors
     if (status === 401) {

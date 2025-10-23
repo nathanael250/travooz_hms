@@ -35,6 +35,32 @@ export const getMaintenanceDashboard = (homestayId) => {
   });
 };
 
+// Get my maintenance tasks
+export const getMyMaintenanceTasks = (status) => {
+  return apiClient.get('/maintenance/my-tasks', { 
+    params: status ? { status } : {} 
+  });
+};
+
+// Start maintenance task
+export const startMaintenanceTask = (requestId) => {
+  return apiClient.patch(`/maintenance/requests/${requestId}`, { 
+    status: 'in_progress',
+    started_date: new Date().toISOString()
+  });
+};
+
+// Complete maintenance task
+export const completeMaintenanceTask = (requestId, data) => {
+  return apiClient.patch(`/maintenance/requests/${requestId}`, { 
+    status: 'completed',
+    completed_date: new Date().toISOString(),
+    completion_notes: data.completion_notes,
+    actual_cost: data.actual_cost,
+    notes: data.notes
+  });
+};
+
 // Maintenance Assets
 export const getMaintenanceAssets = (params) => {
   return apiClient.get('/maintenance/assets', { params });

@@ -1,5 +1,7 @@
 // Export Front Desk pages
 export { FrontDeskBookingsList } from './BookingsList';
+export { default as FrontDeskDashboard } from './FrontDeskDashboard';
+export { ReceptionistDashboard } from '../dashboards/ReceptionistDashboard';
 export { UpcomingArrivals } from './UpcomingArrivals';
 export { CheckOut } from './CheckOut';
 export { InHouseGuests } from './InHouseGuests';

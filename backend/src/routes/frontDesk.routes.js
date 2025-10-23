@@ -83,6 +83,9 @@ router.get('/upcoming-arrivals', authMiddleware, async (req, res) => {
       INNER JOIN room_inventory ri_booked ON rb.inventory_id = ri_booked.inventory_id
       INNER JOIN room_types rt ON ri_booked.room_type_id = rt.room_type_id
       INNER JOIN homestays h ON rb.homestay_id = h.homestay_id
+      LEFT JOIN room_assignments ra ON b.booking_id = ra.booking_id 
+        AND ra.status IN ('assigned', 'checked_in')
+      LEFT JOIN room_inventory ri ON ra.inventory_id = ri.inventory_id
       WHERE ${dateCondition}
         ${statusCondition}
       ORDER BY rb.check_in_date ASC, b.booking_id ASC
@@ -402,8 +405,6 @@ router.get('/in-house-guests', authMiddleware, async (req, res) => {
       INNER JOIN homestays h ON rb.homestay_id = h.homestay_id
       WHERE b.status = 'checked_in'
         AND rb.homestay_id = ?
-        AND rb.check_in_date <= CURDATE()
-        AND rb.check_out_date >= CURDATE()
       ORDER BY rb.check_out_date ASC, ri.unit_number ASC
     `, {
       replacements: [homestayId],
@@ -489,7 +490,6 @@ router.get('/checkouts', authMiddleware, async (req, res) => {
       INNER JOIN homestays h ON rb.homestay_id = h.homestay_id
       WHERE b.status = 'checked_in'
         AND rb.homestay_id = ?
-        AND rb.check_out_date <= DATE_ADD(CURDATE(), INTERVAL 1 DAY)
       ORDER BY rb.check_out_date ASC, ri.unit_number ASC
     `, {
       replacements: [homestayId],
@@ -571,7 +571,7 @@ router.get('/room-status', authMiddleware, async (req, res) => {
         rb.check_in_date,
         rb.check_out_date,
         CASE
-          WHEN ri.status = 'occupied' AND b.status = 'completed' THEN 'occupied'
+          WHEN ri.status = 'occupied' AND b.status IN ('checked_in', 'completed') THEN 'occupied'
           WHEN ri.status = 'available' THEN 'vacant'
           WHEN ri.status = 'maintenance' THEN 'maintenance'
           WHEN ri.status = 'blocked' THEN 'blocked'
@@ -581,10 +581,12 @@ router.get('/room-status', authMiddleware, async (req, res) => {
       INNER JOIN room_types rt ON ri.room_type_id = rt.room_type_id
       INNER JOIN homestays h ON rt.homestay_id = h.homestay_id
       LEFT JOIN room_bookings rb ON rb.inventory_id = ri.inventory_id
-        AND rb.check_in_date <= CURDATE()
-        AND rb.check_out_date >= CURDATE()
+        AND rb.booking_id IN (
+          SELECT booking_id FROM bookings 
+          WHERE status IN ('checked_in', 'completed')
+        )
       LEFT JOIN bookings b ON rb.booking_id = b.booking_id
-        AND b.status = 'completed'
+        AND b.status IN ('checked_in', 'completed')
       WHERE h.homestay_id = ?
       ORDER BY ri.floor ASC, ri.unit_number ASC
     `, {

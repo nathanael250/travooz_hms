@@ -1,293 +1,405 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Clock,
+  Sparkles,
   CheckCircle,
+  Clock,
   AlertCircle,
-  Users,
+  Loader2,
   ClipboardList,
+  Bed,
+  Users,
   TrendingUp,
-  Calendar,
-  BarChart3
+  ListChecks
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
+import StaffTaskDashboard from '../../components/StaffTaskDashboard';
 import apiClient from '../../services/apiClient';
-import * as housekeepingService from '../../services/housekeepingService';
-import { Link } from 'react-router-dom';
 
 const HousekeepingDashboard = () => {
-  const [stats, setStats] = useState(null);
+  const { user } = useAuth();
+  const { t } = useTranslation();
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
-  const [selectedHomestay, setSelectedHomestay] = useState('');
-  const [homestays, setHomestays] = useState([]);
+  const [dashboardData, setDashboardData] = useState({
+    pendingTasks: 0,
+    inProgressTasks: 0,
+    completedToday: 0,
+    totalRooms: 0,
+    roomsByStatus: {
+      dirty: 0,
+      cleaning: 0,
+      clean: 0,
+      inspectionNeeded: 0
+    },
+    supplyAlerts: [],
+    teamActivity: []
+  });
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchDashboardStats();
-    fetchHomestays();
-  }, [selectedHomestay]);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const fetchDashboardStats = async () => {
+  useEffect(() => {
+    fetchDashboardData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchDashboardData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchDashboardData = async () => {
     try {
-      const response = await housekeepingService.getHousekeepingDashboard(selectedHomestay);
-      setStats(response.data);
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+      setLoading(true);
+      setError(null);
+
+      // Fetch all guest requests for this hotel
+      const requestsResponse = await apiClient.get('/guest-requests');
+      
+      // Fetch room status data
+      const roomStatusResponse = await apiClient.get('/front-desk/room-status');
+      
+      // Fetch supply/inventory data (if available)
+      let supplyAlerts = [];
+      try {
+        const supplyResponse = await apiClient.get('/stock/alerts');
+        if (supplyResponse.data && supplyResponse.data.data) {
+          supplyAlerts = supplyResponse.data.data.map(item => ({
+            item: item.item_name,
+            level: item.alert_level,
+            remaining: item.current_stock
+          }));
+        }
+      } catch (supplyError) {
+        console.log('Supply alerts not available, using default');
+        supplyAlerts = [
+          { item: 'Toilet Paper', level: 'critical', remaining: 15 },
+          { item: 'Towels', level: 'low', remaining: 25 },
+          { item: 'Bed Sheets', level: 'low', remaining: 30 },
+        ];
+      }
+      
+      if (requestsResponse.data && requestsResponse.data.success) {
+        const requests = requestsResponse.data.data.requests || [];
+        
+        // Calculate statistics
+        const today = new Date().toDateString();
+        
+        const pendingCount = requests.filter(r => r.status === 'pending').length;
+        const inProgressCount = requests.filter(r => r.status === 'in_progress').length;
+        const completedCount = requests.filter(r => 
+          r.status === 'completed' && 
+          new Date(r.completed_time).toDateString() === today
+        ).length;
+
+        // Group by request type for activity summary
+        const teamActivityMap = {};
+        requests.forEach(request => {
+          if (request.assigned_staff_name) {
+            if (!teamActivityMap[request.assigned_staff_name]) {
+              teamActivityMap[request.assigned_staff_name] = {
+                name: request.assigned_staff_name,
+                tasksCompleted: 0,
+                tasksInProgress: 0,
+                status: 'active'
+              };
+            }
+            if (request.status === 'completed') {
+              teamActivityMap[request.assigned_staff_name].tasksCompleted++;
+            } else if (request.status === 'in_progress') {
+              teamActivityMap[request.assigned_staff_name].tasksInProgress++;
+            }
+          }
+        });
+
+        const teamActivity = Object.values(teamActivityMap);
+
+        // Calculate room status from real data
+        let roomsByStatus = {
+          dirty: 0,
+          cleaning: 0,
+          clean: 0,
+          inspectionNeeded: 0
+        };
+
+        if (roomStatusResponse.data && roomStatusResponse.data.data && roomStatusResponse.data.data.rooms) {
+          const rooms = roomStatusResponse.data.data.rooms;
+          rooms.forEach(room => {
+            switch (room.status) {
+              case 'vacant-dirty':
+              case 'occupied-dirty':
+                roomsByStatus.dirty++;
+                break;
+              case 'cleaning':
+              case 'in_progress':
+                roomsByStatus.cleaning++;
+                break;
+              case 'vacant-clean':
+              case 'occupied-clean':
+                roomsByStatus.clean++;
+                break;
+              case 'maintenance':
+              case 'blocked':
+                roomsByStatus.inspectionNeeded++;
+                break;
+              default:
+                roomsByStatus.clean++;
+            }
+          });
+        } else {
+          // Fallback to mock data if room status not available
+          roomsByStatus = {
+            dirty: 12,
+            cleaning: 5,
+            clean: 38,
+            inspectionNeeded: 5
+          };
+        }
+
+        const totalRooms = Object.values(roomsByStatus).reduce((sum, count) => sum + count, 0);
+
+        setDashboardData({
+          pendingTasks: pendingCount,
+          inProgressTasks: inProgressCount,
+          completedToday: completedCount,
+          totalRooms: totalRooms,
+          roomsByStatus: roomsByStatus,
+          supplyAlerts: supplyAlerts,
+          teamActivity: teamActivity.length > 0 ? teamActivity : [
+            { name: 'No team members', tasksCompleted: 0, tasksInProgress: 0, status: 'inactive' }
+          ]
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchHomestays = async () => {
-    try {
-      const response = await apiClient.get('/homestays');
-      setHomestays(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error('Error fetching homestays:', error);
-      setHomestays([]);
-    }
-  };
-
-  if (loading) {
+  if (loading && Object.values(dashboardData.roomsByStatus).every(v => v === 0)) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading dashboard...</div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-gradient-to-r from-purple-600 to-purple-800 p-4 sm:p-6 text-white rounded-lg mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Housekeeping Dashboard</h1>
-            <p className="text-gray-600">Overview of housekeeping operations and performance</p>
+            <h1 className="text-xl sm:text-2xl font-bold">Housekeeping Dashboard</h1>
+            <p className="text-purple-100 mt-1 text-sm">
+              {currentTime.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })} • {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
-          <div className="w-64">
-            <select
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              value={selectedHomestay}
-              onChange={(e) => setSelectedHomestay(e.target.value)}
-            >
-              <option value="">All Homestays</option>
-              {homestays.map(homestay => (
-                <option key={homestay.homestay_id} value={homestay.homestay_id}>
-                  {homestay.name}
-                </option>
+          <div className="text-left sm:text-right">
+            <p className="text-sm text-purple-100">Welcome</p>
+            <p className="font-semibold">{user?.name || 'Housekeeping Staff'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-6 bg-gray-50">
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-900">Error loading dashboard</h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <button
+                onClick={fetchDashboardData}
+                className="mt-2 text-sm text-red-600 hover:text-red-700 font-medium underline"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+            title="Pending Tasks"
+            value={dashboardData.pendingTasks}
+          icon={Clock}
+            color="orange"
+        />
+        <StatCard
+          title="In Progress"
+            value={dashboardData.inProgressTasks}
+            icon={ClipboardList}
+            color="blue"
+        />
+        <StatCard
+            title="Completed Today"
+            value={dashboardData.completedToday}
+          icon={CheckCircle}
+          color="green"
+          />
+          <StatCard
+            title="Total Rooms"
+            value={dashboardData.totalRooms}
+            icon={Bed}
+            color="purple"
+        />
+      </div>
+
+        {/* Guest Request Tasks - Integrated Task Management */}
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <ListChecks className="h-5 w-5 text-purple-600" />
+            My Assigned Tasks
+          </h3>
+          <StaffTaskDashboard staffRole="housekeeping" />
+        </div>
+
+        {/* Room Status Overview */}
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Bed className="h-5 w-5 text-purple-600" />
+            Room Status Overview
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-red-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-red-600">{dashboardData.roomsByStatus.dirty}</div>
+              <div className="text-sm text-red-700">Needs Cleaning</div>
+            </div>
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">{dashboardData.roomsByStatus.cleaning}</div>
+              <div className="text-sm text-blue-700">Being Cleaned</div>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{dashboardData.roomsByStatus.clean}</div>
+              <div className="text-sm text-green-700">Clean & Ready</div>
+            </div>
+            <div className="bg-yellow-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-yellow-600">{dashboardData.roomsByStatus.inspectionNeeded}</div>
+              <div className="text-sm text-yellow-700">Inspection Needed</div>
+            </div>
+          </div>
+      </div>
+
+        {/* Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Supply Alerts */}
+          <div className="bg-white rounded-lg shadow-sm p-4 border-2 border-orange-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-600" />
+              Supply Alerts
+            </h3>
+            <div className="space-y-3">
+              {dashboardData.supplyAlerts.map((supply, index) => (
+                <div key={index} className={`p-3 rounded-lg ${
+                  supply.level === 'critical'
+                    ? 'bg-red-50 border border-red-200'
+                    : 'bg-yellow-50 border border-yellow-200'
+                }`}>
+      <div className="flex items-center justify-between">
+        <div>
+                      <div className="font-medium text-gray-900">{supply.item}</div>
+                      <div className="text-sm text-gray-600">Remaining: {supply.remaining} units</div>
+        </div>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      supply.level === 'critical'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {supply.level}
+                    </span>
+      </div>
+    </div>
               ))}
-            </select>
+            </div>
           </div>
-        </div>
+
+          {/* Team Activity */}
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Users className="h-5 w-5 text-blue-600" />
+              Team Activity
+            </h3>
+            <div className="space-y-3">
+              {dashboardData.teamActivity.map((member, index) => (
+                <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium text-gray-900">{member.name}</div>
+                    <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                      {member.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                    <div>Completed: <span className="font-medium text-green-600">{member.tasksCompleted}</span></div>
+                    <div>In Progress: <span className="font-medium text-blue-600">{member.tasksInProgress}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
       </div>
 
-      {/* Main Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
+        {/* Performance Summary */}
+        <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg shadow-sm p-4 border border-purple-200">
+          <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-purple-600" />
+            Today's Performance
+          </h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Total Tasks</p>
-              <p className="text-3xl font-bold text-gray-900">{stats?.totalTasks || 0}</p>
+              <div className="text-2xl font-bold text-purple-900">{dashboardData.completedToday}</div>
+              <div className="text-sm text-purple-700">Rooms Cleaned</div>
             </div>
-            <div className="bg-blue-100 p-3 rounded-lg">
-              <ClipboardList className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Pending Tasks</p>
-              <p className="text-3xl font-bold text-yellow-600">{stats?.pendingTasks || 0}</p>
-            </div>
-            <div className="bg-yellow-100 p-3 rounded-lg">
-              <Clock className="w-8 h-8 text-yellow-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">In Progress</p>
-              <p className="text-3xl font-bold text-indigo-600">{stats?.inProgressTasks || 0}</p>
-            </div>
-            <div className="bg-indigo-100 p-3 rounded-lg">
-              <TrendingUp className="w-8 h-8 text-indigo-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Completed Today</p>
-              <p className="text-3xl font-bold text-green-600">{stats?.completedToday || 0}</p>
-            </div>
-            <div className="bg-green-100 p-3 rounded-lg">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Secondary Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Assigned Tasks</p>
-              <p className="text-2xl font-bold text-blue-600">{stats?.assignedTasks || 0}</p>
-            </div>
-            <div className="bg-blue-50 p-2 rounded-lg">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Urgent Tasks</p>
-              <p className="text-2xl font-bold text-red-600">{stats?.urgentTasks || 0}</p>
-            </div>
-            <div className="bg-red-50 p-2 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Overdue Tasks</p>
-              <p className="text-2xl font-bold text-orange-600">{stats?.overdueTasks || 0}</p>
-            </div>
-            <div className="bg-orange-50 p-2 rounded-lg">
-              <Calendar className="w-6 h-6 text-orange-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Task Type Breakdown */}
-      {stats?.tasksByType && Object.keys(stats.tasksByType).length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Tasks by Type</h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {Object.entries(stats.tasksByType).map(([type, count]) => (
-              <div key={type} className="border border-gray-200 rounded-lg p-4">
-                <p className="text-sm text-gray-600 capitalize mb-1">
-                  {type.replace(/_/g, ' ')}
-                </p>
-                <p className="text-2xl font-bold text-gray-900">{count}</p>
+              <div className="text-2xl font-bold text-purple-900">
+                {dashboardData.completedToday + dashboardData.inProgressTasks > 0 
+                  ? Math.round((dashboardData.completedToday / (dashboardData.completedToday + dashboardData.inProgressTasks)) * 100) 
+                  : 0}%
               </div>
-            ))}
+              <div className="text-sm text-purple-700">Completion Rate</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-purple-900">{dashboardData.inProgressTasks}</div>
+              <div className="text-sm text-purple-700">In Progress</div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
+    </div>
+  );
+};
 
-      {/* Staff Performance */}
-      {stats?.staffPerformance && stats.staffPerformance.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Staff Performance</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Staff Member
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tasks Completed
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Avg. Duration (min)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Avg. Quality Rating
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {stats.staffPerformance.map((staff, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 font-medium">
-                            {staff.staff_name?.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {staff.staff_name}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{staff.completed_count}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {staff.avg_duration ? Math.round(staff.avg_duration) : 'N/A'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="text-sm text-gray-900">
-                          {staff.avg_quality ? staff.avg_quality.toFixed(1) : 'N/A'}
-                        </div>
-                        {staff.avg_quality && (
-                          <div className="ml-2 flex">
-                            {[...Array(5)].map((_, i) => (
-                              <svg
-                                key={i}
-                                className={`w-4 h-4 ${
-                                  i < Math.round(staff.avg_quality)
-                                    ? 'text-yellow-400'
-                                    : 'text-gray-300'
-                                }`}
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                              </svg>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+const StatCard = ({ title, value, icon: Icon, color }) => {
+  const colorClasses = {
+    blue: { bg: 'bg-blue-500', border: 'border-blue-200' },
+    green: { bg: 'bg-green-500', border: 'border-green-200' },
+    orange: { bg: 'bg-orange-500', border: 'border-orange-200' },
+    purple: { bg: 'bg-purple-500', border: 'border-purple-200' }
+  };
+
+  return (
+    <div className={`bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border-l-4 ${colorClasses[color].border}`}>
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-600 mb-1">{title}</p>
+          <p className="text-2xl font-bold text-gray-900">{value}</p>
         </div>
-      )}
-
-      {/* Quick Actions */}
-      <div className="mt-6 flex gap-4">
-        <Link
-          to="/housekeeping/tasks"
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <ClipboardList className="w-5 h-5" />
-          View All Tasks
-        </Link>
-        <Link
-          to="/housekeeping/my-tasks"
-          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
-        >
-          <Users className="w-5 h-5" />
-          My Tasks
-        </Link>
+        <div className={`p-2 rounded-lg ${colorClasses[color].bg}`}>
+          <Icon className="h-5 w-5 text-white" />
+        </div>
       </div>
     </div>
   );
