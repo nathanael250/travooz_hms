@@ -47,10 +47,11 @@ import {
 import {Bookings} from './pages/bookings/Bookings';
 import { FrontDeskBookingsList } from './pages/frontdesk';
 import { DashboardRouter } from './pages/DashboardRouter';
-import { MaintenanceRequests, MaintenanceAssets, MaintenanceDashboard } from './pages/maintenance';
+import { MaintenanceRequests, MaintenanceAssets, MaintenanceDashboard, MaintenanceMyTasks } from './pages/maintenance';
 import StaffDashboard from './pages/staff/StaffDashboard';
 import { RestaurantTables, MenuManagement, RestaurantOrders, OrderItems, KitchenQueue, OrderDelivery } from './pages/restaurant';
-import { StockItems, StockMovements, Suppliers, PurchaseOrders, UsageLogs, InventoryAlerts } from './pages/stock';
+import { StockItems, StockMovements, Suppliers, PurchaseOrders, UsageLogs, InventoryAlerts, StockBalance } from './pages/stock';
+import { StorekeeperDashboard } from './pages/dashboards';
 import { Invoices } from './pages/financial';
 import { EditHomestay } from './pages/hotels/EditHomestay';
 import { StayView } from './pages/hotels/StayView';
@@ -126,10 +127,11 @@ function App() {
           <Route path="staff/dashboard" element={<StaffDashboard />} />
           <Route path="staff/my-tasks" element={<StaffDashboard />} />
 
-          {/* Maintenance Management Routes */}
-          <Route path="maintenance/dashboard" element={<MaintenanceDashboard />} />
-          <Route path="maintenance/requests" element={<MaintenanceRequests />} />
-          <Route path="maintenance/assets" element={<MaintenanceAssets />} />
+                 {/* Maintenance Management Routes */}
+                 <Route path="maintenance/dashboard" element={<MaintenanceDashboard />} />
+                 <Route path="maintenance/requests" element={<MaintenanceRequests />} />
+                 <Route path="maintenance/assets" element={<MaintenanceAssets />} />
+                 <Route path="maintenance/my-tasks" element={<MaintenanceMyTasks />} />
 
           {/* Restaurant & Kitchen Routes */}
           <Route path="restaurant/tables" element={<RestaurantTables />} />
@@ -146,6 +148,13 @@ function App() {
           <Route path="stock/orders" element={<PurchaseOrders />} />
           <Route path="stock/usage-logs" element={<UsageLogs />} />
           <Route path="stock/alerts" element={<InventoryAlerts />} />
+
+          {/* Storekeeper Routes */}
+          <Route path="storekeeper/dashboard" element={<StorekeeperDashboard />} />
+          <Route path="storekeeper/stock-items" element={<StockItems />} />
+          <Route path="storekeeper/stock-balance" element={<StockBalance />} />
+          <Route path="storekeeper/suppliers" element={<Suppliers />} />
+          <Route path="storekeeper/purchase-orders" element={<PurchaseOrders />} />
 
           {/* Front Desk Routes - RECEPTIONIST */}
           <Route path="front-desk/bookings" element={<FrontDeskBookingsList />} />

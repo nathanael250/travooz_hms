@@ -7,7 +7,8 @@ import {
   MaintenanceDashboard,
   RestaurantDashboard,
   InventoryDashboard,
-  AccountantDashboard
+  AccountantDashboard,
+  StorekeeperDashboard
 } from './dashboards';
 
 export const DashboardRouter = () => {
@@ -37,6 +38,9 @@ export const DashboardRouter = () => {
     
     case 'accountant':
       return <AccountantDashboard />;
+    
+    case 'storekeeper':
+      return <StorekeeperDashboard />;
     
     default:
       return <Dashboard />; // Fallback to comprehensive dashboard

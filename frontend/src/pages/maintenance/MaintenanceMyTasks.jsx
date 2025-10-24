@@ -6,59 +6,56 @@ import {
   AlertTriangle, 
   Filter, 
   Search,
-  Plus,
   Eye,
   MessageSquare,
-  ArrowUp,
   Calendar,
   MapPin,
   User,
   Phone,
-  Mail
+  Mail,
+  Plus,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import apiClient from '../../services/apiClient';
 import { toast } from 'react-hot-toast';
 
-const MaintenanceDashboard = () => {
+const MaintenanceMyTasks = () => {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState([]);
-  const [filteredRequests, setFilteredRequests] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [filteredTasks, setFilteredTasks] = useState([]);
   const [error, setError] = useState(null);
   
   // Filter states
   const [statusFilter, setStatusFilter] = useState('all');
-  const [urgencyFilter, setUrgencyFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Modal states
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
-  const [showEscalateModal, setShowEscalateModal] = useState(false);
   
   // Form states
   const [completionNote, setCompletionNote] = useState('');
-  const [escalationNote, setEscalationNote] = useState('');
-  const [escalationTarget, setEscalationTarget] = useState('');
-  const [requestNote, setRequestNote] = useState('');
+  const [taskNote, setTaskNote] = useState('');
 
   useEffect(() => {
-    fetchMaintenanceRequests();
+    fetchMyTasks();
     
     // Update time every minute
     const timeInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
     
-    // Refresh requests every 30 seconds
-    const refreshInterval = setInterval(fetchMaintenanceRequests, 30000);
+    // Refresh tasks every 30 seconds
+    const refreshInterval = setInterval(fetchMyTasks, 30000);
     
     return () => {
       clearInterval(timeInterval);
@@ -68,153 +65,110 @@ const MaintenanceDashboard = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [requests, statusFilter, urgencyFilter, dateFilter, searchTerm]);
+  }, [tasks, statusFilter, priorityFilter, searchTerm]);
 
-  const fetchMaintenanceRequests = async () => {
+  const fetchMyTasks = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch maintenance requests from dedicated maintenance API
-      const response = await apiClient.get('/maintenance/requests');
+      // Fetch maintenance requests assigned to current user
+      const response = await apiClient.get('/maintenance/requests', {
+        params: {
+          assigned_to: user?.hms_user_id || user?.user_id
+        }
+      });
       
+      let maintenanceTasks = [];
       if (response.data && response.data.success) {
-        const maintenanceRequests = response.data.data?.requests || response.data.requests || [];
-        setRequests(maintenanceRequests);
+        maintenanceTasks = response.data.data?.requests || response.data.requests || [];
       } else {
         // Fallback: try to fetch from guest-requests and filter
         const fallbackResponse = await apiClient.get('/guest-requests');
         if (fallbackResponse.data && fallbackResponse.data.data) {
           const allRequests = fallbackResponse.data.data.requests || [];
           
-          // Filter for maintenance-related requests
-          const maintenanceRequests = allRequests.filter(request => 
-            ['ac_repair', 'plumbing', 'electrical', 'tv_issue', 'wifi_issue', 'heating', 'cooling', 'maintenance', 'repair'].includes(request.request_type) ||
+          // Filter for maintenance-related requests assigned to current user
+          maintenanceTasks = allRequests.filter(request => 
+            (request.assigned_to === user?.hms_user_id || request.assigned_to === user?.user_id) &&
+            (['ac_repair', 'plumbing', 'electrical', 'tv_issue', 'wifi_issue', 'heating', 'cooling', 'maintenance', 'repair'].includes(request.request_type) ||
             request.description?.toLowerCase().includes('repair') ||
             request.description?.toLowerCase().includes('fix') ||
             request.description?.toLowerCase().includes('broken') ||
-            request.description?.toLowerCase().includes('not working')
+            request.description?.toLowerCase().includes('not working'))
           );
-          
-          setRequests(maintenanceRequests);
         }
       }
+
+      setTasks(maintenanceTasks);
     } catch (err) {
-      console.error('Error fetching maintenance requests:', err);
-      setError('Failed to load maintenance requests');
-      
-      // Set empty array to prevent crashes
-      setRequests([]);
+      console.error('Error fetching my tasks:', err);
+      setError('Failed to load my tasks');
+      setTasks([]);
     } finally {
       setLoading(false);
     }
   };
 
   const applyFilters = () => {
-    let filtered = [...requests];
+    let filtered = [...tasks];
 
     // Status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(request => request.status === statusFilter);
+      filtered = filtered.filter(task => task.status === statusFilter);
     }
 
-    // Urgency filter (based on priority)
-    if (urgencyFilter !== 'all') {
-      filtered = filtered.filter(request => request.priority === urgencyFilter);
-    }
-
-    // Date filter
-    if (dateFilter !== 'all') {
-      const today = new Date();
-      const filterDate = new Date();
-      
-      switch (dateFilter) {
-        case 'today':
-          filtered = filtered.filter(request => 
-            new Date(request.requested_time || request.created_at).toDateString() === today.toDateString()
-          );
-          break;
-        case 'this_week':
-          const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-          filtered = filtered.filter(request => 
-            new Date(request.requested_time || request.created_at) >= weekAgo
-          );
-          break;
-        case 'overdue':
-          filtered = filtered.filter(request => {
-            if (request.status === 'completed') return false;
-            const requestDate = new Date(request.requested_time || request.created_at);
-            const hoursSinceRequest = (today - requestDate) / (1000 * 60 * 60);
-            return hoursSinceRequest > 24; // Overdue if more than 24 hours
-          });
-          break;
-      }
+    // Priority filter
+    if (priorityFilter !== 'all') {
+      filtered = filtered.filter(task => task.priority === priorityFilter);
     }
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(request =>
-        request.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.request_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.guest_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.room_number?.toString().includes(searchTerm)
+      filtered = filtered.filter(task =>
+        task.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        task.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        task.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        task.request_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (task.room?.unit_number || task.room_number)?.toString().includes(searchTerm)
       );
     }
 
-    setFilteredRequests(filtered);
+    setFilteredTasks(filtered);
   };
 
-  const handleAcceptRequest = async () => {
+  const handleCompleteTask = async () => {
     try {
-      const response = await apiClient.patch(`/maintenance/requests/${selectedRequest.request_id}`, {
-        status: 'in_progress',
-        assigned_to: user?.hms_user_id || user?.user_id
-      });
-      
-      if (response.data.success) {
-        toast.success('Request accepted successfully');
-        setShowAcceptModal(false);
-        setSelectedRequest(null);
-        fetchMaintenanceRequests();
-      }
-    } catch (error) {
-      console.error('Error accepting request:', error);
-      toast.error('Failed to accept request');
-    }
-  };
-
-  const handleCompleteRequest = async () => {
-    try {
-      const response = await apiClient.patch(`/maintenance/requests/${selectedRequest.request_id}`, {
+      const response = await apiClient.patch(`/maintenance/requests/${selectedTask.request_id}`, {
         status: 'completed',
         completion_notes: completionNote
       });
       
       if (response.data.success) {
-        toast.success('Request completed successfully');
+        toast.success('Task completed successfully');
         setShowCompleteModal(false);
-        setSelectedRequest(null);
+        setSelectedTask(null);
         setCompletionNote('');
-        fetchMaintenanceRequests();
+        fetchMyTasks();
       }
     } catch (error) {
-      console.error('Error completing request:', error);
-      toast.error('Failed to complete request');
+      console.error('Error completing task:', error);
+      toast.error('Failed to complete task');
     }
   };
 
   const handleAddNote = async () => {
     try {
-      const response = await apiClient.patch(`/maintenance/requests/${selectedRequest.request_id}`, {
-        notes: requestNote
+      const response = await apiClient.patch(`/maintenance/requests/${selectedTask.request_id}`, {
+        notes: taskNote
       });
       
       if (response.data.success) {
         toast.success('Note added successfully');
         setShowNoteModal(false);
-        setSelectedRequest(null);
-        setRequestNote('');
-        fetchMaintenanceRequests();
+        setSelectedTask(null);
+        setTaskNote('');
+        fetchMyTasks();
       }
     } catch (error) {
       console.error('Error adding note:', error);
@@ -222,41 +176,22 @@ const MaintenanceDashboard = () => {
     }
   };
 
-  const handleEscalateRequest = async () => {
-    try {
-      const response = await apiClient.patch(`/maintenance/requests/${selectedRequest.request_id}`, {
-        status: 'on_hold',
-        notes: `Escalated to ${escalationTarget}: ${escalationNote}`
-      });
-      
-      if (response.data.success) {
-        toast.success('Request escalated successfully');
-        setShowEscalateModal(false);
-        setSelectedRequest(null);
-        setEscalationNote('');
-        setEscalationTarget('');
-        fetchMaintenanceRequests();
-      }
-    } catch (error) {
-      console.error('Error escalating request:', error);
-      toast.error('Failed to escalate request');
-    }
-  };
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-blue-100 text-blue-800';
       case 'in_progress': return 'bg-blue-100 text-blue-800';
       case 'completed': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
-      case 'escalated': return 'bg-purple-100 text-purple-800';
+      case 'on_hold': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
+      case 'urgent': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
       case 'medium': return 'bg-yellow-100 text-yellow-800';
       case 'low': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -283,24 +218,25 @@ const MaintenanceDashboard = () => {
     }
   };
 
-  const canAcceptRequest = (request) => {
-    return request.status === 'pending' && (request.assigned_to === user?.hms_user_id || request.assigned_to === user?.user_id);
+  const getTimeAgo = (dateString) => {
+    if (!dateString) return 'Unknown';
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
   };
 
-  const canCompleteRequest = (request) => {
-    return request.status === 'in_progress' && (request.assigned_to === user?.hms_user_id || request.assigned_to === user?.user_id);
-  };
-
-  const canEscalateRequest = (request) => {
-    return ['pending', 'in_progress'].includes(request.status);
-  };
-
-  if (loading && requests.length === 0) {
+  if (loading && tasks.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading maintenance requests...</p>
+          <p className="mt-4 text-gray-600">Loading my tasks...</p>
         </div>
       </div>
     );
@@ -313,7 +249,7 @@ const MaintenanceDashboard = () => {
           <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600">{error}</p>
           <button 
-            onClick={fetchMaintenanceRequests}
+            onClick={fetchMyTasks}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Retry
@@ -331,11 +267,11 @@ const MaintenanceDashboard = () => {
           <div className="flex justify-between items-center py-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                <Wrench className="h-8 w-8 text-blue-600" />
-                Maintenance Dashboard
+                <CheckCircle className="h-8 w-8 text-green-600" />
+                My Maintenance Tasks
               </h1>
               <p className="text-gray-600 mt-1">
-                Manage technical service requests and repairs
+                Tasks assigned to you for maintenance and repairs
               </p>
             </div>
             <div className="text-right">
@@ -359,11 +295,11 @@ const MaintenanceDashboard = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Pending</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {requests.filter(r => r.status === 'pending').length}
+                  {tasks.filter(t => t.status === 'pending').length}
                 </p>
               </div>
+            </div>
           </div>
-        </div>
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
@@ -373,7 +309,7 @@ const MaintenanceDashboard = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">In Progress</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {requests.filter(r => r.status === 'in_progress').length}
+                  {tasks.filter(t => t.status === 'in_progress').length}
                 </p>
               </div>
             </div>
@@ -385,16 +321,13 @@ const MaintenanceDashboard = () => {
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Completed Today</p>
+                <p className="text-sm font-medium text-gray-600">Completed</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {requests.filter(r => 
-                    r.status === 'completed' && 
-                    new Date(r.completed_time).toDateString() === new Date().toDateString()
-                  ).length}
+                  {tasks.filter(t => t.status === 'completed').length}
                 </p>
               </div>
+            </div>
           </div>
-        </div>
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
@@ -402,13 +335,9 @@ const MaintenanceDashboard = () => {
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Overdue</p>
+                <p className="text-sm font-medium text-gray-600">Urgent</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {requests.filter(r => {
-                    if (r.status === 'completed') return false;
-                    const hoursSinceRequest = (new Date() - new Date(r.requested_time || r.created_at)) / (1000 * 60 * 60);
-                    return hoursSinceRequest > 24;
-                  }).length}
+                  {tasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length}
                 </p>
               </div>
             </div>
@@ -430,32 +359,23 @@ const MaintenanceDashboard = () => {
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
               <option value="in_progress">In Progress</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
-              <option value="escalated">Escalated</option>
+              <option value="on_hold">On Hold</option>
             </select>
 
             <select
-              value={urgencyFilter}
-              onChange={(e) => setUrgencyFilter(e.target.value)}
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Priority</option>
+              <option value="urgent">Urgent</option>
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
-            </select>
-
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Dates</option>
-              <option value="today">Today</option>
-              <option value="this_week">This Week</option>
-              <option value="overdue">Overdue</option>
             </select>
 
             <div className="flex-1 min-w-64">
@@ -463,7 +383,7 @@ const MaintenanceDashboard = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search requests..."
+                  placeholder="Search tasks..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -473,18 +393,18 @@ const MaintenanceDashboard = () => {
           </div>
         </div>
 
-        {/* Requests Table */}
+        {/* Tasks List */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">
-              Technical Service Requests ({filteredRequests.length})
+              My Tasks ({filteredTasks.length})
             </h3>
-      </div>
+          </div>
 
-          {filteredRequests.length === 0 ? (
+          {filteredTasks.length === 0 ? (
             <div className="text-center py-12">
-              <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No maintenance requests found</p>
+              <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No tasks assigned to you</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -492,13 +412,10 @@ const MaintenanceDashboard = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Request
+                      Task
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Room
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Guest
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -507,7 +424,7 @@ const MaintenanceDashboard = () => {
                       Priority
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Requested
+                      Assigned
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -515,19 +432,19 @@ const MaintenanceDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredRequests.map((request) => (
-                    <tr key={request.request_id} className="hover:bg-gray-50">
+                  {filteredTasks.map((task) => (
+                    <tr key={task.request_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <span className="text-2xl mr-3">
-                            {getRequestTypeIcon(request.category || request.request_type)}
+                            {getRequestTypeIcon(task.category || task.request_type)}
                           </span>
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {request.title || request.request_type?.replace('_', ' ').toUpperCase()}
+                              {task.title || task.request_type?.replace('_', ' ').toUpperCase()}
                             </div>
                             <div className="text-sm text-gray-500 max-w-xs truncate">
-                              {request.description}
+                              {task.description}
                             </div>
                           </div>
                         </div>
@@ -535,87 +452,55 @@ const MaintenanceDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center text-sm text-gray-900">
                           <MapPin className="h-4 w-4 text-gray-400 mr-2" />
-                          {request.room?.unit_number || request.room_number || 'N/A'}
+                          {task.room?.unit_number || task.room_number || 'N/A'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {request.reportedByUser?.name || request.guest_name || 'N/A'}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {request.reportedByUser?.email || request.guest_email || ''}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(request.status)}`}>
-                          {request.status?.replace('_', ' ').toUpperCase()}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(task.status)}`}>
+                          {task.status?.replace('_', ' ').toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(request.priority)}`}>
-                          {request.priority?.toUpperCase() || 'MEDIUM'}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(task.priority)}`}>
+                          {task.priority?.toUpperCase() || 'MEDIUM'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {request.reported_date ? 
-                          new Date(request.reported_date).toLocaleString() : 
-                          request.requested_time ? 
-                            new Date(request.requested_time).toLocaleString() : 
-                            'ASAP'
-                        }
+                        {getTimeAgo(task.reported_date || task.requested_time || task.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
                           <button
                             onClick={() => {
-                              setSelectedRequest(request);
-                              setShowAcceptModal(true);
+                              setSelectedTask(task);
+                              setShowDetailsModal(true);
                             }}
-                            disabled={!canAcceptRequest(request)}
-                            className={`px-3 py-1 rounded text-xs ${
-                              canAcceptRequest(request) 
-                                ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            }`}
+                            className="px-3 py-1 bg-blue-100 text-blue-800 hover:bg-blue-200 rounded text-xs"
                           >
-                            Accept
+                            View
                           </button>
                           <button
                             onClick={() => {
-                              setSelectedRequest(request);
+                              setSelectedTask(task);
                               setShowCompleteModal(true);
                             }}
-                            disabled={!canCompleteRequest(request)}
+                            disabled={task.status === 'completed'}
                             className={`px-3 py-1 rounded text-xs ${
-                              canCompleteRequest(request) 
-                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              task.status === 'completed' 
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                : 'bg-green-100 text-green-800 hover:bg-green-200'
                             }`}
                           >
                             Complete
                           </button>
                           <button
                             onClick={() => {
-                              setSelectedRequest(request);
+                              setSelectedTask(task);
                               setShowNoteModal(true);
                             }}
                             className="px-3 py-1 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded text-xs"
                           >
                             Note
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              setShowEscalateModal(true);
-                            }}
-                            disabled={!canEscalateRequest(request)}
-                            className={`px-3 py-1 rounded text-xs ${
-                              canEscalateRequest(request) 
-                                ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' 
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            }`}
-                          >
-                            Escalate
                           </button>
                         </div>
                       </td>
@@ -628,41 +513,62 @@ const MaintenanceDashboard = () => {
         </div>
       </div>
 
-      {/* Accept Request Modal */}
-      {showAcceptModal && selectedRequest && (
+      {/* Task Details Modal */}
+      {showDetailsModal && selectedTask && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Accept Request</h3>
-            <p className="text-gray-600 mb-4">
-              Are you sure you want to accept this maintenance request?
-            </p>
-            <div className="bg-gray-50 p-3 rounded mb-4">
-              <p className="text-sm font-medium">{selectedRequest.title || selectedRequest.request_type?.replace('_', ' ').toUpperCase()}</p>
-              <p className="text-sm text-gray-600">{selectedRequest.description}</p>
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <h3 className="text-lg font-semibold mb-4">Task Details</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Title</label>
+                  <p className="text-sm text-gray-900">{selectedTask.title || selectedTask.request_type?.replace('_', ' ').toUpperCase()}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Room</label>
+                  <p className="text-sm text-gray-900">{selectedTask.room?.unit_number || selectedTask.room_number || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Status</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedTask.status)}`}>
+                    {selectedTask.status?.replace('_', ' ').toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Priority</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(selectedTask.priority)}`}>
+                    {selectedTask.priority?.toUpperCase() || 'MEDIUM'}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <p className="text-sm text-gray-900">{selectedTask.description}</p>
+              </div>
+              {selectedTask.notes && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Notes</label>
+                  <p className="text-sm text-gray-900">{selectedTask.notes}</p>
+                </div>
+              )}
             </div>
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end mt-6">
               <button
-                onClick={() => setShowAcceptModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => setShowDetailsModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleAcceptRequest}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Accept Request
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Complete Request Modal */}
-      {showCompleteModal && selectedRequest && (
+      {/* Complete Task Modal */}
+      {showCompleteModal && selectedTask && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Complete Request</h3>
+            <h3 className="text-lg font-semibold mb-4">Complete Task</h3>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Completion Notes
@@ -683,10 +589,10 @@ const MaintenanceDashboard = () => {
                 Cancel
               </button>
               <button
-                onClick={handleCompleteRequest}
+                onClick={handleCompleteTask}
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
               >
-                Complete Request
+                Complete Task
               </button>
             </div>
           </div>
@@ -694,7 +600,7 @@ const MaintenanceDashboard = () => {
       )}
 
       {/* Add Note Modal */}
-      {showNoteModal && selectedRequest && (
+      {showNoteModal && selectedTask && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Add Note</h3>
@@ -703,11 +609,11 @@ const MaintenanceDashboard = () => {
                 Note
               </label>
               <textarea
-                value={requestNote}
-                onChange={(e) => setRequestNote(e.target.value)}
+                value={taskNote}
+                onChange={(e) => setTaskNote(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 rows="3"
-                placeholder="Add a note about this request..."
+                placeholder="Add a note about this task..."
               />
             </div>
             <div className="flex justify-end space-x-3">
@@ -727,58 +633,8 @@ const MaintenanceDashboard = () => {
           </div>
         </div>
       )}
-
-      {/* Escalate Request Modal */}
-      {showEscalateModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Escalate Request</h3>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Escalate To
-              </label>
-              <select
-                value={escalationTarget}
-                onChange={(e) => setEscalationTarget(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select escalation target</option>
-                <option value="manager">Hotel Manager</option>
-                <option value="vendor">Vendor</option>
-                <option value="admin">System Admin</option>
-              </select>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Escalation Reason
-              </label>
-              <textarea
-                value={escalationNote}
-                onChange={(e) => setEscalationNote(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                rows="3"
-                placeholder="Why is this request being escalated?"
-              />
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowEscalateModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEscalateRequest}
-                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-              >
-                Escalate Request
-              </button>
-          </div>
-        </div>
-      </div>
-      )}
     </div>
   );
 };
 
-export default MaintenanceDashboard;
+export default MaintenanceMyTasks;

@@ -225,6 +225,21 @@ const getNavigation = (t, role) => {
         { name: 'Account Summary', href: '/financial/account-summary', icon: PieChart },
       ];
 
+    case 'storekeeper':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Stock Items', href: '/storekeeper/stock-items', icon: Box },
+        { name: 'Stock Balance', href: '/storekeeper/stock-balance', icon: BarChart3 },
+        { name: 'Suppliers', href: '/storekeeper/suppliers', icon: Truck },
+        { name: 'Purchase Orders', href: '/storekeeper/purchase-orders', icon: ShoppingBag },
+        { name: 'Delivery Notes', href: '/storekeeper/delivery-notes', icon: ClipboardCheck },
+        { name: 'Cost Reports', href: '/storekeeper/cost-reports', icon: TrendingUp },
+        { name: 'Supplier Reports', href: '/storekeeper/supplier-reports', icon: PieChart },
+        { name: 'Stock Units', href: '/storekeeper/stock-units', icon: Boxes },
+        { name: 'Item List', href: '/storekeeper/item-list', icon: ListIcon },
+        { name: 'Categories', href: '/storekeeper/categories', icon: PackageIcon },
+      ];
+
     default:
       return [
         { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
@@ -249,7 +264,7 @@ const adjustNavigationForRole = (navigation, role) => {
   });
 };
 
-export const Sidebar = () => {
+const Sidebar = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
   const location = useLocation();
@@ -445,3 +460,5 @@ const SidebarContent = ({ navigation, isCurrentPage, user, isMenuExpanded, toggl
     </div>
   </div>
 );
+
+export default Sidebar;

@@ -14,62 +14,252 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import apiClient from '../../services/apiClient';
+import { toast } from 'react-hot-toast';
 
 export const AccountantDashboard = () => {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    revenueToday: 0,
+    revenueMonth: 0,
+    outstandingInvoices: 0,
+    pendingPayments: 0,
+    recentTransactions: [],
+    monthlyRevenue: [],
+    revenueBySource: [],
+    outstandingInvoicesList: [],
+    expensesSummary: {},
+    accountSummary: {}
+  });
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    fetchFinancialData();
     return () => clearInterval(timer);
   }, []);
 
-  // Mock data - replace with API call
-  const dashboardData = {
-    revenueToday: 19600000,
-    revenueMonth: 406250000,
-    outstandingInvoices: 31750000,
-    pendingPayments: 8,
-    recentTransactions: [
-      { id: 1, type: 'payment', description: 'Room 302 - Payment', amount: 250000, status: 'completed', time: '10 min ago' },
-      { id: 2, type: 'invoice', description: 'Booking BK-2024-045', amount: 450000, status: 'pending', time: '1 hour ago' },
-      { id: 3, type: 'payment', description: 'Restaurant - Table 5', amount: 125000, status: 'completed', time: '2 hours ago' },
-      { id: 4, type: 'refund', description: 'Cancelled Booking', amount: 350000, status: 'processing', time: '3 hours ago' },
-    ],
-    monthlyRevenue: [
-      { month: 'Jan', revenue: 320000000, target: 300000000 },
-      { month: 'Feb', revenue: 280000000, target: 300000000 },
-      { month: 'Mar', revenue: 350000000, target: 300000000 },
-      { month: 'Apr', revenue: 410000000, target: 350000000 },
-      { month: 'May', revenue: 380000000, target: 350000000 },
-      { month: 'Jun', revenue: 400000000, target: 400000000 }
-    ],
-    revenueBySource: [
-      { name: 'Room Bookings', amount: 265625000, percentage: 65 },
-      { name: 'Restaurant', amount: 101562500, percentage: 25 },
-      { name: 'Laundry', amount: 20312500, percentage: 5 },
-      { name: 'Other Services', amount: 18750000, percentage: 5 }
-    ],
-    outstandingInvoicesList: [
-      { id: 1, invoice: 'INV-2024-089', guest: 'John Smith', amount: 850000, dueDate: '2025-01-18', daysOverdue: 2 },
-      { id: 2, invoice: 'INV-2024-087', guest: 'Sarah Johnson', amount: 1250000, dueDate: '2025-01-20', daysOverdue: 0 },
-      { id: 3, invoice: 'INV-2024-085', guest: 'Mike Wilson', amount: 650000, dueDate: '2025-01-15', daysOverdue: 5 },
-    ],
-    expensesSummary: {
-      salaries: 12000000,
-      utilities: 3500000,
-      supplies: 2800000,
-      maintenance: 1900000,
-      other: 1500000
-    },
-    accountSummary: {
-      totalAssets: 650000000,
-      totalLiabilities: 125000000,
-      netProfit: 45000000,
-      profitMargin: 11.1
+  const fetchFinancialData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch multiple financial data sources in parallel
+      const [
+        invoicesResponse,
+        paymentsResponse,
+        accountsResponse
+      ] = await Promise.allSettled([
+        apiClient.get('/invoices'),
+        apiClient.get('/reports/invoices'),
+        apiClient.get('/financial-accounts')
+      ]);
+
+      // Process invoices data
+      let invoices = [];
+      if (invoicesResponse.status === 'fulfilled') {
+        invoices = invoicesResponse.value.data?.data || invoicesResponse.value.data || [];
+      }
+
+      // Process payments data
+      let payments = [];
+      if (paymentsResponse.status === 'fulfilled') {
+        payments = paymentsResponse.value.data?.data || paymentsResponse.value.data || [];
+      }
+
+      // Process accounts data
+      let accounts = [];
+      if (accountsResponse.status === 'fulfilled') {
+        accounts = accountsResponse.value.data || [];
+      }
+
+      // Calculate financial metrics
+      const today = new Date().toDateString();
+      const thisMonth = new Date().getMonth();
+      const thisYear = new Date().getFullYear();
+
+      // Calculate revenue today
+      const revenueToday = payments
+        .filter(payment => new Date(payment.payment_date || payment.created_at).toDateString() === today)
+        .reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+
+      // Calculate revenue this month
+      const revenueMonth = payments
+        .filter(payment => {
+          const paymentDate = new Date(payment.payment_date || payment.created_at);
+          return paymentDate.getMonth() === thisMonth && paymentDate.getFullYear() === thisYear;
+        })
+        .reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+
+      // Calculate outstanding invoices
+      const outstandingInvoices = invoices
+        .filter(invoice => invoice.status !== 'paid')
+        .reduce((sum, invoice) => sum + (parseFloat(invoice.balance_due) || parseFloat(invoice.total_amount) || 0), 0);
+
+      // Count pending payments
+      const pendingPayments = payments.filter(payment => payment.status === 'pending').length;
+
+      // Process recent transactions
+      const recentTransactions = payments
+        .slice(0, 4)
+        .map(payment => ({
+          id: payment.transaction_id || payment.id,
+          type: 'payment',
+          description: payment.reference_number || 'Payment Transaction',
+          amount: parseFloat(payment.amount) || 0,
+          status: payment.status || 'completed',
+          time: getTimeAgo(payment.payment_date || payment.created_at)
+        }));
+
+      // Generate monthly revenue data (last 6 months)
+      const monthlyRevenue = generateMonthlyRevenueData(payments);
+
+      // Calculate revenue by source
+      const revenueBySource = calculateRevenueBySource(payments);
+
+      // Process outstanding invoices list
+      const outstandingInvoicesList = invoices
+        .filter(invoice => invoice.status !== 'paid')
+        .slice(0, 3)
+        .map(invoice => ({
+          id: invoice.invoice_id,
+          invoice: invoice.invoice_number || `INV-${invoice.invoice_id}`,
+          guest: invoice.guest_name || 'Guest',
+          amount: parseFloat(invoice.balance_due) || parseFloat(invoice.total_amount) || 0,
+          dueDate: invoice.due_date || invoice.invoice_date,
+          daysOverdue: calculateDaysOverdue(invoice.due_date || invoice.invoice_date)
+        }));
+
+      // Mock expenses summary (would need separate API)
+      const expensesSummary = {
+        salaries: 12000000,
+        utilities: 3500000,
+        supplies: 2800000,
+        maintenance: 1900000,
+        other: 1500000
+      };
+
+      // Calculate account summary
+      const totalAssets = accounts.reduce((sum, account) => sum + (parseFloat(account.balance) || 0), 0);
+      const totalLiabilities = 125000000; // Would need separate API
+      const netProfit = revenueMonth - Object.values(expensesSummary).reduce((a, b) => a + b, 0);
+      const profitMargin = revenueMonth > 0 ? (netProfit / revenueMonth) * 100 : 0;
+
+      setDashboardData({
+        revenueToday,
+        revenueMonth,
+        outstandingInvoices,
+        pendingPayments,
+        recentTransactions,
+        monthlyRevenue,
+        revenueBySource,
+        outstandingInvoicesList,
+        expensesSummary,
+        accountSummary: {
+          totalAssets,
+          totalLiabilities,
+          netProfit,
+          profitMargin
+        }
+      });
+
+    } catch (err) {
+      console.error('Error fetching financial data:', err);
+      setError('Failed to load financial data');
+      
+      // Set default empty data to prevent crashes
+      setDashboardData({
+        revenueToday: 0,
+        revenueMonth: 0,
+        outstandingInvoices: 0,
+        pendingPayments: 0,
+        recentTransactions: [],
+        monthlyRevenue: [],
+        revenueBySource: [],
+        outstandingInvoicesList: [],
+        expensesSummary: {},
+        accountSummary: {}
+      });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const getTimeAgo = (dateString) => {
+    if (!dateString) return 'Unknown';
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  };
+
+  const calculateDaysOverdue = (dueDate) => {
+    if (!dueDate) return 0;
+    const today = new Date();
+    const due = new Date(dueDate);
+    const diffTime = today - due;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  const generateMonthlyRevenueData = (payments) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const currentMonth = new Date().getMonth();
+    
+    return months.map((month, index) => {
+      const monthIndex = (currentMonth - 5 + index + 12) % 12;
+      const monthPayments = payments.filter(payment => {
+        const paymentDate = new Date(payment.payment_date || payment.created_at);
+        return paymentDate.getMonth() === monthIndex;
+      });
+      
+      const revenue = monthPayments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+      
+      return {
+        month,
+        revenue,
+        target: revenue * 1.1 // Mock target
+      };
+    });
+  };
+
+  const calculateRevenueBySource = (payments) => {
+    const sources = {
+      'Room Bookings': 0,
+      'Restaurant': 0,
+      'Laundry': 0,
+      'Other Services': 0
+    };
+
+    payments.forEach(payment => {
+      const amount = parseFloat(payment.amount) || 0;
+      // Categorize based on payment description or type
+      if (payment.description?.toLowerCase().includes('room') || payment.description?.toLowerCase().includes('booking')) {
+        sources['Room Bookings'] += amount;
+      } else if (payment.description?.toLowerCase().includes('restaurant') || payment.description?.toLowerCase().includes('food')) {
+        sources['Restaurant'] += amount;
+      } else if (payment.description?.toLowerCase().includes('laundry')) {
+        sources['Laundry'] += amount;
+      } else {
+        sources['Other Services'] += amount;
+      }
+    });
+
+    const total = Object.values(sources).reduce((a, b) => a + b, 0);
+    
+    return Object.entries(sources).map(([name, amount]) => ({
+      name,
+      amount,
+      percentage: total > 0 ? Math.round((amount / total) * 100) : 0
+    }));
   };
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
@@ -79,7 +269,24 @@ export const AccountantDashboard = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-gray-600">Loading financial dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchFinancialData}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

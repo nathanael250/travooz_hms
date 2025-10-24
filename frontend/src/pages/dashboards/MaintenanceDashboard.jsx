@@ -13,49 +13,205 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
+import apiClient from '../../services/apiClient';
+import { toast } from 'react-hot-toast';
 
 export const MaintenanceDashboard = () => {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    urgentRequests: 0,
+    inProgress: 0,
+    completedToday: 0,
+    totalRequests: 0,
+    myTasks: [],
+    requestsByType: {
+      plumbing: 0,
+      electrical: 0,
+      hvac: 0,
+      structural: 0,
+      other: 0
+    },
+    equipmentStatus: [],
+    spareParts: []
+  });
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    fetchMaintenanceData();
     return () => clearInterval(timer);
   }, []);
 
-  // Mock data - replace with API call
-  const dashboardData = {
-    urgentRequests: 3,
-    inProgress: 5,
-    completedToday: 12,
-    totalRequests: 20,
-    myTasks: [
-      { id: 1, room: '507', issue: 'Leaky faucet', priority: 'urgent', status: 'in-progress', reportedBy: 'Guest', reportedTime: '2 hours ago' },
-      { id: 2, room: '304', issue: 'AC not working', priority: 'high', status: 'pending', reportedBy: 'Housekeeping', reportedTime: '3 hours ago' },
-      { id: 3, room: 'Lobby', issue: 'Broken light fixture', priority: 'medium', status: 'pending', reportedBy: 'Front Desk', reportedTime: '5 hours ago' },
-      { id: 4, room: '201', issue: 'Door lock malfunction', priority: 'urgent', status: 'pending', reportedBy: 'Guest', reportedTime: '1 hour ago' },
-    ],
-    requestsByType: {
-      plumbing: 5,
-      electrical: 4,
-      hvac: 3,
-      structural: 2,
-      other: 6
-    },
-    equipmentStatus: [
-      { equipment: 'HVAC System - Floor 1', status: 'operational', lastMaintenance: '2 days ago' },
-      { equipment: 'Elevator A', status: 'warning', lastMaintenance: '15 days ago' },
-      { equipment: 'Water Heater - Main', status: 'operational', lastMaintenance: '5 days ago' },
-      { equipment: 'Generator', status: 'needs-attention', lastMaintenance: '30 days ago' },
-    ],
-    spareParts: [
-      { part: 'Faucet Cartridges', quantity: 5, status: 'low' },
-      { part: 'Light Bulbs (LED)', quantity: 45, status: 'ok' },
-      { part: 'Door Locks', quantity: 2, status: 'critical' },
-      { part: 'AC Filters', quantity: 12, status: 'ok' },
-    ]
+  const fetchMaintenanceData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch maintenance requests from dedicated maintenance API
+      const response = await apiClient.get('/maintenance/requests');
+      
+      let maintenanceRequests = [];
+      if (response.data && response.data.success) {
+        maintenanceRequests = response.data.data?.requests || response.data.requests || [];
+      } else {
+        // Fallback: try to fetch from guest-requests and filter
+        const fallbackResponse = await apiClient.get('/guest-requests');
+        if (fallbackResponse.data && fallbackResponse.data.data) {
+          const allRequests = fallbackResponse.data.data.requests || [];
+          
+          // Filter for maintenance-related requests
+          maintenanceRequests = allRequests.filter(request => 
+            ['ac_repair', 'plumbing', 'electrical', 'tv_issue', 'wifi_issue', 'heating', 'cooling', 'maintenance', 'repair'].includes(request.request_type) ||
+            request.description?.toLowerCase().includes('repair') ||
+            request.description?.toLowerCase().includes('fix') ||
+            request.description?.toLowerCase().includes('broken') ||
+            request.description?.toLowerCase().includes('not working')
+          );
+        }
+      }
+
+      // Process the data
+      const today = new Date().toDateString();
+      const urgentRequests = maintenanceRequests.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
+      const inProgress = maintenanceRequests.filter(r => r.status === 'in_progress').length;
+      const completedToday = maintenanceRequests.filter(r => 
+        r.status === 'completed' && 
+        new Date(r.completed_date || r.completed_time).toDateString() === today
+      ).length;
+
+      // Process my tasks (assigned to current user)
+      const myTasks = maintenanceRequests
+        .filter(r => r.assigned_to === user?.hms_user_id || r.assigned_to === user?.user_id)
+        .slice(0, 4)
+        .map(request => ({
+          id: request.request_id,
+          room: request.room?.unit_number || request.room_number || 'N/A',
+          issue: request.title || request.description || 'Maintenance Request',
+          priority: request.priority || 'medium',
+          status: request.status || 'pending',
+          reportedBy: request.reportedByUser?.name || request.guest_name || 'Staff',
+          reportedTime: getTimeAgo(request.reported_date || request.requested_time || request.created_at)
+        }));
+
+      // Process requests by type
+      const requestsByType = {
+        plumbing: maintenanceRequests.filter(r => r.category === 'plumbing' || r.request_type === 'plumbing').length,
+        electrical: maintenanceRequests.filter(r => r.category === 'electrical' || r.request_type === 'electrical').length,
+        hvac: maintenanceRequests.filter(r => r.category === 'hvac' || r.request_type === 'ac_repair' || r.request_type === 'heating' || r.request_type === 'cooling').length,
+        structural: maintenanceRequests.filter(r => r.category === 'structural' || r.request_type === 'structural').length,
+        other: maintenanceRequests.filter(r => !['plumbing', 'electrical', 'hvac', 'structural'].includes(r.category) && !['plumbing', 'electrical', 'ac_repair', 'heating', 'cooling', 'structural'].includes(r.request_type)).length
+      };
+
+      setDashboardData({
+        urgentRequests,
+        inProgress,
+        completedToday,
+        totalRequests: maintenanceRequests.length,
+        myTasks,
+        requestsByType,
+        equipmentStatus: [], // This would need a separate API call
+        spareParts: [] // This would need a separate API call
+      });
+
+    } catch (err) {
+      console.error('Error fetching maintenance data:', err);
+      
+      // If maintenance API fails, try guest-requests as fallback
+      try {
+        console.log('Trying fallback to guest-requests API...');
+        const fallbackResponse = await apiClient.get('/guest-requests');
+        if (fallbackResponse.data && fallbackResponse.data.data) {
+          const allRequests = fallbackResponse.data.data.requests || [];
+          
+          // Filter for maintenance-related requests
+          const maintenanceRequests = allRequests.filter(request => 
+            ['ac_repair', 'plumbing', 'electrical', 'tv_issue', 'wifi_issue', 'heating', 'cooling', 'maintenance', 'repair'].includes(request.request_type) ||
+            request.description?.toLowerCase().includes('repair') ||
+            request.description?.toLowerCase().includes('fix') ||
+            request.description?.toLowerCase().includes('broken') ||
+            request.description?.toLowerCase().includes('not working')
+          );
+
+          // Process the fallback data
+          const today = new Date().toDateString();
+          const urgentRequests = maintenanceRequests.filter(r => r.priority === 'urgent' || r.priority === 'high').length;
+          const inProgress = maintenanceRequests.filter(r => r.status === 'in_progress').length;
+          const completedToday = maintenanceRequests.filter(r => 
+            r.status === 'completed' && 
+            new Date(r.completed_date || r.completed_time).toDateString() === today
+          ).length;
+
+          const myTasks = maintenanceRequests
+            .filter(r => r.assigned_to === user?.hms_user_id || r.assigned_to === user?.user_id)
+            .slice(0, 4)
+            .map(request => ({
+              id: request.request_id,
+              room: request.room?.unit_number || request.room_number || 'N/A',
+              issue: request.title || request.description || 'Maintenance Request',
+              priority: request.priority || 'medium',
+              status: request.status || 'pending',
+              reportedBy: request.reportedByUser?.name || request.guest_name || 'Staff',
+              reportedTime: getTimeAgo(request.reported_date || request.requested_time || request.created_at)
+            }));
+
+          const requestsByType = {
+            plumbing: maintenanceRequests.filter(r => r.category === 'plumbing' || r.request_type === 'plumbing').length,
+            electrical: maintenanceRequests.filter(r => r.category === 'electrical' || r.request_type === 'electrical').length,
+            hvac: maintenanceRequests.filter(r => r.category === 'hvac' || r.request_type === 'ac_repair' || r.request_type === 'heating' || r.request_type === 'cooling').length,
+            structural: maintenanceRequests.filter(r => r.category === 'structural' || r.request_type === 'structural').length,
+            other: maintenanceRequests.filter(r => !['plumbing', 'electrical', 'hvac', 'structural'].includes(r.category) && !['plumbing', 'electrical', 'ac_repair', 'heating', 'cooling', 'structural'].includes(r.request_type)).length
+          };
+
+          setDashboardData({
+            urgentRequests,
+            inProgress,
+            completedToday,
+            totalRequests: maintenanceRequests.length,
+            myTasks,
+            requestsByType,
+            equipmentStatus: [],
+            spareParts: []
+          });
+          
+          console.log('Successfully loaded data from guest-requests fallback');
+          return; // Success with fallback data
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
+      
+      setError('Failed to load maintenance data');
+      
+      // Set default empty data to prevent crashes
+      setDashboardData({
+        urgentRequests: 0,
+        inProgress: 0,
+        completedToday: 0,
+        totalRequests: 0,
+        myTasks: [],
+        requestsByType: { plumbing: 0, electrical: 0, hvac: 0, structural: 0, other: 0 },
+        equipmentStatus: [],
+        spareParts: []
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeAgo = (dateString) => {
+    if (!dateString) return 'Unknown';
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
   };
 
   if (loading) {
@@ -69,13 +225,30 @@ export const MaintenanceDashboard = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchMaintenanceData}
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-600 to-orange-800 p-4 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">Maintenance Dashboardssdd</h1>
+            <h1 className="text-xl font-bold">Maintenance Dashboard</h1>
             <p className="text-orange-100 mt-1 text-sm">
               {currentTime.toLocaleDateString('en-US', {
                 weekday: 'long',

@@ -1,640 +1,357 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  DollarSign, 
-  FileText, 
-  TrendingUp, 
-  TrendingDown, 
-  CreditCard, 
-  Receipt, 
-  BarChart3, 
-  Clock, 
+import React, { useEffect, useState } from 'react';
+import {
+  CreditCard,
+  TrendingUp,
+  DollarSign,
+  FileText,
+  Loader2,
+  AlertCircle,
   CheckCircle,
-  AlertTriangle,
-  Users,
   Calendar,
-  Filter,
-  Search,
-  Plus,
-  Eye,
-  Download,
-  Calculator,
-  PieChart
+  PieChart,
+  Receipt
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
-import apiClient from '../../services/apiClient';
-import { toast } from 'react-hot-toast';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-const AccountantDashboard = () => {
+export const AccountantDashboard = () => {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [loading, setLoading] = useState(true);
-  const [dashboardData, setDashboardData] = useState({
-    totalRevenue: 0,
-    monthlyRevenue: 0,
-    pendingInvoices: 0,
-    overdueInvoices: 0,
-    totalBookings: 0,
-    occupancyRate: 0,
-    averageBookingValue: 0,
-    recentTransactions: [],
-    topRevenueSources: [],
-    paymentStatusBreakdown: [],
-    monthlyTrends: []
-  });
-  const [error, setError] = useState(null);
-  
-  // Filter states
-  const [timeFilter, setTimeFilter] = useState('30'); // days
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [paymentFilter, setPaymentFilter] = useState('all');
-  
-  // Modal states
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
-    
-    // Update time every minute
-    const timeInterval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    
-    // Refresh data every 5 minutes
-    const refreshInterval = setInterval(fetchDashboardData, 300000);
-    
-    return () => {
-      clearInterval(timeInterval);
-      clearInterval(refreshInterval);
-    };
-  }, [timeFilter, statusFilter, paymentFilter]);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch all dashboard data in parallel
-      const [
-        bookingsResponse,
-        invoicesResponse,
-        paymentsResponse,
-        revenueResponse
-      ] = await Promise.all([
-        apiClient.get('/bookings/room-bookings'),
-        apiClient.get('/invoices'),
-        apiClient.get('/payments'),
-        apiClient.get('/reports/revenue', { params: { period: timeFilter } })
-      ]);
-
-      const bookings = bookingsResponse.data || [];
-      const invoices = invoicesResponse.data || [];
-      const payments = paymentsResponse.data || [];
-      const revenue = revenueResponse.data || {};
-
-      // Calculate dashboard metrics
-      const totalRevenue = bookings.reduce((sum, booking) => {
-        return sum + (parseFloat(booking.final_amount) || 0);
-      }, 0);
-
-      const monthlyRevenue = bookings.filter(booking => {
-        const bookingDate = new Date(booking.created_at);
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        return bookingDate >= thirtyDaysAgo;
-      }).reduce((sum, booking) => {
-        return sum + (parseFloat(booking.final_amount) || 0);
-      }, 0);
-
-      const pendingInvoices = invoices.filter(invoice => 
-        invoice.status === 'pending' || invoice.status === 'draft'
-      ).length;
-
-      const overdueInvoices = invoices.filter(invoice => {
-        if (!invoice.due_date) return false;
-        const dueDate = new Date(invoice.due_date);
-        const today = new Date();
-        return dueDate < today && invoice.status !== 'paid';
-      }).length;
-
-      const totalBookings = bookings.length;
-      const occupancyRate = bookings.filter(booking => 
-        booking.status === 'checked_in' || booking.status === 'completed'
-      ).length / Math.max(totalBookings, 1) * 100;
-
-      const averageBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
-
-      // Recent transactions (last 10 bookings)
-      const recentTransactions = bookings
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 10);
-
-      // Payment status breakdown
-      const paymentStatusBreakdown = bookings.reduce((acc, booking) => {
-        const status = booking.payment_status || 'pending';
-        if (!acc[status]) {
-          acc[status] = { count: 0, amount: 0 };
-        }
-        acc[status].count++;
-        acc[status].amount += parseFloat(booking.final_amount) || 0;
-        return acc;
-      }, {});
-
-      // Top revenue sources (by booking source)
-      const topRevenueSources = bookings.reduce((acc, booking) => {
-        const source = booking.source || 'Direct';
-        if (!acc[source]) {
-          acc[source] = { count: 0, revenue: 0 };
-        }
-        acc[source].count++;
-        acc[source].revenue += parseFloat(booking.final_amount) || 0;
-        return acc;
-      }, {});
-
-      setDashboardData({
-        totalRevenue,
-        monthlyRevenue,
-        pendingInvoices,
-        overdueInvoices,
-        totalBookings,
-        occupancyRate,
-        averageBookingValue,
-        recentTransactions,
-        topRevenueSources: Object.entries(topRevenueSources)
-          .map(([source, data]) => ({ source, ...data }))
-          .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 5),
-        paymentStatusBreakdown: Object.entries(paymentStatusBreakdown)
-          .map(([status, data]) => ({ status, ...data })),
-        monthlyTrends: [] // Could be implemented with historical data
-      });
-
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-      setError('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
+  // Mock data - replace with API call
+  const dashboardData = {
+    revenueToday: 19600000,
+    revenueMonth: 406250000,
+    outstandingInvoices: 31750000,
+    pendingPayments: 8,
+    recentTransactions: [
+      { id: 1, type: 'payment', description: 'Room 302 - Payment', amount: 250000, status: 'completed', time: '10 min ago' },
+      { id: 2, type: 'invoice', description: 'Booking BK-2024-045', amount: 450000, status: 'pending', time: '1 hour ago' },
+      { id: 3, type: 'payment', description: 'Restaurant - Table 5', amount: 125000, status: 'completed', time: '2 hours ago' },
+      { id: 4, type: 'refund', description: 'Cancelled Booking', amount: 350000, status: 'processing', time: '3 hours ago' },
+    ],
+    monthlyRevenue: [
+      { month: 'Jan', revenue: 320000000, target: 300000000 },
+      { month: 'Feb', revenue: 280000000, target: 300000000 },
+      { month: 'Mar', revenue: 350000000, target: 300000000 },
+      { month: 'Apr', revenue: 410000000, target: 350000000 },
+      { month: 'May', revenue: 380000000, target: 350000000 },
+      { month: 'Jun', revenue: 400000000, target: 400000000 }
+    ],
+    revenueBySource: [
+      { name: 'Room Bookings', amount: 265625000, percentage: 65 },
+      { name: 'Restaurant', amount: 101562500, percentage: 25 },
+      { name: 'Laundry', amount: 20312500, percentage: 5 },
+      { name: 'Other Services', amount: 18750000, percentage: 5 }
+    ],
+    outstandingInvoicesList: [
+      { id: 1, invoice: 'INV-2024-089', guest: 'John Smith', amount: 850000, dueDate: '2025-01-18', daysOverdue: 2 },
+      { id: 2, invoice: 'INV-2024-087', guest: 'Sarah Johnson', amount: 1250000, dueDate: '2025-01-20', daysOverdue: 0 },
+      { id: 3, invoice: 'INV-2024-085', guest: 'Mike Wilson', amount: 650000, dueDate: '2025-01-15', daysOverdue: 5 },
+    ],
+    expensesSummary: {
+      salaries: 12000000,
+      utilities: 3500000,
+      supplies: 2800000,
+      maintenance: 1900000,
+      other: 1500000
+    },
+    accountSummary: {
+      totalAssets: 650000000,
+      totalLiabilities: 125000000,
+      netProfit: 45000000,
+      profitMargin: 11.1
     }
   };
 
-  const handleGenerateInvoice = async (bookingId) => {
-    try {
-      const response = await apiClient.post(`/invoices/generate/${bookingId}`);
-      
-      if (response.data.success) {
-        toast.success('Invoice generated successfully');
-        fetchDashboardData();
-      }
-    } catch (error) {
-      console.error('Error generating invoice:', error);
-      toast.error('Failed to generate invoice');
-    }
-  };
+  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
 
-  const handleRecordPayment = async (bookingId, amount, method) => {
-    try {
-      const response = await apiClient.post('/payments', {
-        booking_id: bookingId,
-        amount: amount,
-        payment_method: method,
-        notes: 'Payment recorded from dashboard'
-      });
-      
-      if (response.data.success) {
-        toast.success('Payment recorded successfully');
-        setShowPaymentModal(false);
-        setSelectedBooking(null);
-        fetchDashboardData();
-      }
-    } catch (error) {
-      console.error('Error recording payment:', error);
-      toast.error('Failed to record payment');
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'paid': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'overdue': return 'bg-red-100 text-red-800';
-      case 'partial': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getBookingStatusColor = (status) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'checked_in': return 'bg-blue-100 text-blue-800';
-      case 'checked_out': return 'bg-gray-100 text-gray-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-yellow-100 text-yellow-800';
-    }
-  };
-
-  if (loading && dashboardData.totalBookings === 0) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading accountant dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600">{error}</p>
-          <button 
-            onClick={fetchDashboardData}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Retry
-          </button>
+          <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                <Calculator className="h-8 w-8 text-green-600" />
-                Accountant Dashboard
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Financial overview, invoicing, and payment management
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Current Time</div>
-                <div className="text-lg font-semibold text-gray-900">
-                  {currentTime.toLocaleTimeString()}
-                </div>
-              </div>
-              <button
-                onClick={() => setShowInvoiceModal(true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Generate Invoice
-              </button>
-            </div>
+      <div className="bg-gradient-to-r from-green-600 to-green-800 p-4 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Financial Dashboard</h1>
+            <p className="text-green-100 mt-1 text-sm">
+              {currentTime.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })} • {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-green-100">Welcome</p>
+            <p className="font-semibold">{user?.name || 'Accountant'}</p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Financial Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  RWF {dashboardData.totalRevenue.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  RWF {dashboardData.monthlyRevenue.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <FileText className="h-6 w-6 text-yellow-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Pending Invoices</p>
-                <p className="text-2xl font-bold text-gray-900">{dashboardData.pendingInvoices}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Overdue Invoices</p>
-                <p className="text-2xl font-bold text-gray-900">{dashboardData.overdueInvoices}</p>
-              </div>
-            </div>
-          </div>
+      {/* Content */}
+      <div className="p-4 space-y-6 bg-gray-50">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Revenue Today"
+            value={`RWF ${(dashboardData.revenueToday / 1000000).toFixed(1)}M`}
+            icon={DollarSign}
+            color="green"
+          />
+          <StatCard
+            title="Revenue This Month"
+            value={`RWF ${(dashboardData.revenueMonth / 1000000).toFixed(1)}M`}
+            icon={TrendingUp}
+            color="blue"
+          />
+          <StatCard
+            title="Outstanding Invoices"
+            value={`RWF ${(dashboardData.outstandingInvoices / 1000000).toFixed(1)}M`}
+            icon={FileText}
+            color="orange"
+          />
+          <StatCard
+            title="Pending Payments"
+            value={dashboardData.pendingPayments}
+            icon={AlertCircle}
+            color="red"
+          />
         </div>
 
-        {/* Secondary Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Bookings</p>
-                <p className="text-2xl font-bold text-gray-900">{dashboardData.totalBookings}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <BarChart3 className="h-6 w-6 text-indigo-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Occupancy Rate</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {dashboardData.occupancyRate.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Receipt className="h-6 w-6 text-orange-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avg Booking Value</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  RWF {dashboardData.averageBookingValue.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Revenue Trend Chart */}
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-blue-600" />
+            Monthly Revenue Trend
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={dashboardData.monthlyRevenue}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip
+                formatter={(value) => `RWF ${(value / 1000000).toFixed(1)}M`}
+                contentStyle={{ backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: '8px' }}
+              />
+              <Bar dataKey="revenue" fill="#10B981" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="target" fill="#93C5FD" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow mb-6 p-6">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <Filter className="h-5 w-5 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">Filters:</span>
-            </div>
-            
-            <select
-              value={timeFilter}
-              onChange={(e) => setTimeFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
-              <option value="365">Last year</option>
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="completed">Completed</option>
-              <option value="checked_in">Checked In</option>
-              <option value="checked_out">Checked Out</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-
-            <select
-              value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Payment Status</option>
-              <option value="paid">Paid</option>
-              <option value="pending">Pending</option>
-              <option value="partial">Partial</option>
-              <option value="overdue">Overdue</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Transactions */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  Recent Transactions
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Booking
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Guest
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Payment
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {dashboardData.recentTransactions.map((booking) => (
-                      <tr key={booking.booking_id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            #{booking.booking_reference}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {new Date(booking.created_at).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{booking.guest_name}</div>
-                          <div className="text-sm text-gray-500">{booking.guest_email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            RWF {parseFloat(booking.final_amount).toLocaleString()}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getBookingStatusColor(booking.status)}`}>
-                            {booking.status?.replace('_', ' ').toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(booking.payment_status)}`}>
-                            {booking.payment_status?.toUpperCase() || 'PENDING'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => {
-                                setSelectedBooking(booking);
-                                setShowPaymentModal(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              <CreditCard className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleGenerateInvoice(booking.booking_id)}
-                              className="text-green-600 hover:text-green-900"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Status Breakdown */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <PieChart className="h-5 w-5 text-green-600" />
-                  Payment Status
-                </h3>
-              </div>
-              <div className="p-6">
-                {dashboardData.paymentStatusBreakdown.map((status) => (
-                  <div key={status.status} className="flex items-center justify-between mb-4">
-                    <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full mr-3 ${
-                        status.status === 'paid' ? 'bg-green-500' :
-                        status.status === 'pending' ? 'bg-yellow-500' :
-                        status.status === 'overdue' ? 'bg-red-500' :
-                        'bg-blue-500'
-                      }`}></div>
-                      <span className="text-sm font-medium text-gray-900 capitalize">
-                        {status.status}
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-purple-600" />
+              Recent Transactions
+            </h3>
+            <div className="space-y-3">
+              {dashboardData.recentTransactions.map((transaction) => (
+                <div key={transaction.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        transaction.type === 'payment'
+                          ? 'bg-green-100 text-green-700'
+                          : transaction.type === 'invoice'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-orange-100 text-orange-700'
+                      }`}>
+                        {transaction.type}
+                      </span>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        transaction.status === 'completed'
+                          ? 'bg-green-100 text-green-700'
+                          : transaction.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {transaction.status}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold text-gray-900">
-                        {status.count}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        RWF {status.amount.toLocaleString()}
-                      </div>
+                    <div className="font-semibold text-gray-900">
+                      RWF {transaction.amount.toLocaleString()}
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="text-sm text-gray-900 mb-1">{transaction.description}</div>
+                  <div className="text-xs text-gray-500">{transaction.time}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Revenue by Source */}
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <PieChart className="h-5 w-5 text-blue-600" />
+              Revenue by Source
+            </h3>
+            <div className="space-y-3">
+              {dashboardData.revenueBySource.map((source, index) => (
+                <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium text-gray-900">{source.name}</div>
+                    <div className="text-sm font-semibold text-gray-600">{source.percentage}%</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full"
+                        style={{ width: `${source.percentage}%` }}
+                      />
+                    </div>
+                    <div className="text-sm font-semibold text-green-600">
+                      RWF {(source.amount / 1000000).toFixed(1)}M
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Top Revenue Sources */}
-        <div className="mt-6">
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-purple-600" />
-                Top Revenue Sources
-              </h3>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {dashboardData.topRevenueSources.map((source) => (
-                  <div key={source.source} className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900">{source.source}</h4>
-                    <div className="mt-2 space-y-1">
-                      <p className="text-sm text-gray-600">
-                        Bookings: <span className="font-medium">{source.count}</span>
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Revenue: <span className="font-medium">RWF {source.revenue.toLocaleString()}</span>
-                      </p>
-                    </div>
+        {/* Outstanding Invoices */}
+        <div className="bg-white rounded-lg shadow-sm p-4 border-2 border-orange-200">
+          <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <FileText className="h-5 w-5 text-orange-600" />
+            Outstanding Invoices
+          </h3>
+          <div className="space-y-3">
+            {dashboardData.outstandingInvoicesList.map((invoice) => (
+              <div key={invoice.id} className={`p-3 rounded-lg border-l-4 ${
+                invoice.daysOverdue > 0
+                  ? 'bg-red-50 border-red-500'
+                  : 'bg-yellow-50 border-yellow-500'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="font-medium text-gray-900">{invoice.invoice}</div>
+                    <div className="text-sm text-gray-600">{invoice.guest}</div>
                   </div>
-                ))}
+                  <div className="text-right">
+                    <div className="font-semibold text-orange-600">
+                      RWF {invoice.amount.toLocaleString()}
+                    </div>
+                    {invoice.daysOverdue > 0 && (
+                      <div className="text-xs text-red-600 font-medium">
+                        {invoice.daysOverdue} days overdue
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Due Date: <span className="font-medium">{invoice.dueDate}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Expenses Summary & Account Summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Expenses Summary */}
+          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-red-600" />
+              Monthly Expenses
+            </h3>
+            <div className="space-y-3">
+              {Object.entries(dashboardData.expensesSummary).map(([key, value], index) => (
+                <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-gray-900 capitalize">{key}</span>
+                  <span className="font-semibold text-red-600">
+                    RWF {(value / 1000000).toFixed(1)}M
+                  </span>
+                </div>
+              ))}
+              <div className="pt-3 border-t border-gray-200">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-gray-900">Total Expenses</span>
+                  <span className="text-red-600">
+                    RWF {(Object.values(dashboardData.expensesSummary).reduce((a, b) => a + b, 0) / 1000000).toFixed(1)}M
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Account Summary */}
+          <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg shadow-sm p-4 border border-green-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-600" />
+              Account Summary
+            </h3>
+            <div className="space-y-4">
+              <div className="bg-white p-3 rounded-lg">
+                <div className="text-sm text-gray-600">Total Assets</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  RWF {(dashboardData.accountSummary.totalAssets / 1000000).toFixed(1)}M
+                </div>
+              </div>
+              <div className="bg-white p-3 rounded-lg">
+                <div className="text-sm text-gray-600">Total Liabilities</div>
+                <div className="text-2xl font-bold text-red-600">
+                  RWF {(dashboardData.accountSummary.totalLiabilities / 1000000).toFixed(1)}M
+                </div>
+              </div>
+              <div className="bg-white p-3 rounded-lg">
+                <div className="text-sm text-gray-600">Net Profit (This Month)</div>
+                <div className="text-2xl font-bold text-green-600">
+                  RWF {(dashboardData.accountSummary.netProfit / 1000000).toFixed(1)}M
+                </div>
+                <div className="text-sm text-green-700 mt-1">
+                  Profit Margin: {dashboardData.accountSummary.profitMargin}%
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+};
 
-      {/* Payment Modal */}
-      {showPaymentModal && selectedBooking && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Record Payment</h3>
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">
-                Booking: #{selectedBooking.booking_reference}
-              </p>
-              <p className="text-sm text-gray-600 mb-4">
-                Amount: RWF {parseFloat(selectedBooking.final_amount).toLocaleString()}
-              </p>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleRecordPayment(
-                  selectedBooking.booking_id, 
-                  selectedBooking.final_amount, 
-                  'cash'
-                )}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                Record Payment
-              </button>
-            </div>
-          </div>
+const StatCard = ({ title, value, icon: Icon, color }) => {
+  const colorClasses = {
+    blue: { bg: 'bg-blue-500', border: 'border-blue-200' },
+    green: { bg: 'bg-green-500', border: 'border-green-200' },
+    orange: { bg: 'bg-orange-500', border: 'border-orange-200' },
+    red: { bg: 'bg-red-500', border: 'border-red-200' }
+  };
+
+  return (
+    <div className={`bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border-l-4 ${colorClasses[color].border}`}>
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-600 mb-1">{title}</p>
+          <p className="text-2xl font-bold text-gray-900">{value}</p>
         </div>
-      )}
+        <div className={`p-2 rounded-lg ${colorClasses[color].bg}`}>
+          <Icon className="h-5 w-5 text-white" />
+        </div>
+      </div>
     </div>
   );
 };

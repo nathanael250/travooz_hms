@@ -38,6 +38,11 @@ const StockSupplier = require('./stockSupplier.model');
 const StockUsageLog = require('./stockUsageLog.model');
 const StockOrder = require('./stockOrder.model');
 const StockOrderItem = require('./stockOrderItem.model');
+const InventoryCategory = require('./inventoryCategory.model');
+const DeliveryNote = require('./deliveryNote.model');
+const DeliveryNoteItem = require('./deliveryNoteItem.model');
+const StockCostLog = require('./stockCostLog.model');
+const StockUnit = require('./stockUnit.model');
 const RoomAssignment = require('./roomAssignment.model');
 const MenuItemIngredient = require('./menuItemIngredient.model');
 
@@ -318,6 +323,49 @@ StockOrderItem.belongsTo(StockOrder, { foreignKey: 'order_id', as: 'order' });
 StockItem.hasMany(StockOrderItem, { foreignKey: 'item_id', as: 'orderItems' });
 StockOrderItem.belongsTo(StockItem, { foreignKey: 'item_id', as: 'item' });
 
+// New Stock Management associations
+InventoryCategory.hasMany(InventoryCategory, { foreignKey: 'parent_category_id', as: 'subcategories' });
+InventoryCategory.belongsTo(InventoryCategory, { foreignKey: 'parent_category_id', as: 'parentCategory' });
+
+InventoryCategory.hasMany(StockItem, { foreignKey: 'category_id', as: 'items' });
+StockItem.belongsTo(InventoryCategory, { foreignKey: 'category_id', as: 'categoryInfo' });
+
+StockUnit.hasMany(StockUnit, { foreignKey: 'base_unit_id', as: 'convertedUnits' });
+StockUnit.belongsTo(StockUnit, { foreignKey: 'base_unit_id', as: 'baseUnit' });
+
+StockUnit.hasMany(StockItem, { foreignKey: 'unit_id', as: 'items' });
+StockItem.belongsTo(StockUnit, { foreignKey: 'unit_id', as: 'unitInfo' });
+
+StockOrder.hasMany(DeliveryNote, { foreignKey: 'order_id', as: 'deliveryNotes' });
+DeliveryNote.belongsTo(StockOrder, { foreignKey: 'order_id', as: 'order' });
+
+StockSupplier.hasMany(DeliveryNote, { foreignKey: 'supplier_id', as: 'deliveryNotes' });
+DeliveryNote.belongsTo(StockSupplier, { foreignKey: 'supplier_id', as: 'supplier' });
+
+Homestay.hasMany(DeliveryNote, { foreignKey: 'homestay_id', as: 'deliveryNotes' });
+DeliveryNote.belongsTo(Homestay, { foreignKey: 'homestay_id', as: 'homestay' });
+
+User.hasMany(DeliveryNote, { foreignKey: 'received_by', as: 'receivedDeliveries' });
+DeliveryNote.belongsTo(User, { foreignKey: 'received_by', as: 'receiver' });
+
+DeliveryNote.hasMany(DeliveryNoteItem, { foreignKey: 'delivery_note_id', as: 'items' });
+DeliveryNoteItem.belongsTo(DeliveryNote, { foreignKey: 'delivery_note_id', as: 'deliveryNote' });
+
+StockOrderItem.hasMany(DeliveryNoteItem, { foreignKey: 'order_item_id', as: 'deliveryItems' });
+DeliveryNoteItem.belongsTo(StockOrderItem, { foreignKey: 'order_item_id', as: 'orderItem' });
+
+StockItem.hasMany(DeliveryNoteItem, { foreignKey: 'item_id', as: 'deliveryItems' });
+DeliveryNoteItem.belongsTo(StockItem, { foreignKey: 'item_id', as: 'item' });
+
+StockItem.hasMany(StockCostLog, { foreignKey: 'item_id', as: 'costLogs' });
+StockCostLog.belongsTo(StockItem, { foreignKey: 'item_id', as: 'item' });
+
+StockSupplier.hasMany(StockCostLog, { foreignKey: 'supplier_id', as: 'costLogs' });
+StockCostLog.belongsTo(StockSupplier, { foreignKey: 'supplier_id', as: 'supplier' });
+
+User.hasMany(StockCostLog, { foreignKey: 'updated_by', as: 'costUpdates' });
+StockCostLog.belongsTo(User, { foreignKey: 'updated_by', as: 'updater' });
+
 module.exports = {
   User,
   HMSUser,
@@ -360,5 +408,10 @@ module.exports = {
   StockUsageLog,
   StockOrder,
   StockOrderItem,
+  InventoryCategory,
+  DeliveryNote,
+  DeliveryNoteItem,
+  StockCostLog,
+  StockUnit,
   RoomAssignment
 };

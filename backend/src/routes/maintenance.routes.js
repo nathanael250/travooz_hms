@@ -28,6 +28,25 @@ router.get('/requests', [
   try {
     const { status, priority, category, homestay_id, assigned_to, page = 1, limit = 50 } = req.query;
 
+    // First, try to check if maintenance_requests table exists
+    try {
+      await MaintenanceRequest.findOne({ limit: 1 });
+    } catch (tableError) {
+      console.log('Maintenance requests table does not exist, returning empty result');
+      return res.json({
+        success: true,
+        data: {
+          requests: [],
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total: 0,
+            pages: 0
+          }
+        }
+      });
+    }
+
     const whereClause = {};
     if (status) whereClause.status = status;
     if (priority) whereClause.priority = priority;
@@ -37,55 +56,87 @@ router.get('/requests', [
 
     // Filter by user's homestays if vendor
     if (req.user && req.user.role === 'vendor') {
-      const userHomestays = await Homestay.findAll({
-        where: { vendor_id: req.user.user_id },
-        attributes: ['homestay_id']
-      });
-      const homestayIds = userHomestays.map(h => h.homestay_id);
-      whereClause.homestay_id = { [Op.in]: homestayIds };
+      try {
+        const userHomestays = await Homestay.findAll({
+          where: { vendor_id: req.user.user_id },
+          attributes: ['homestay_id']
+        });
+        const homestayIds = userHomestays.map(h => h.homestay_id);
+        if (homestayIds.length > 0) {
+          whereClause.homestay_id = { [Op.in]: homestayIds };
+        }
+      } catch (homestayError) {
+        console.log('Could not filter by homestays:', homestayError.message);
+        // Continue without homestay filtering
+      }
     }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const { count, rows: requests } = await MaintenanceRequest.findAndCountAll({
-      where: whereClause,
-      include: [
-        {
-          model: Room,
-          as: 'room',
-          attributes: ['inventory_id', 'unit_number', 'room_type', 'floor']
-        },
-        {
-          model: Homestay,
-          as: 'homestay',
-          attributes: ['homestay_id', 'name']
-        },
-        {
-          model: User,
-          as: 'reportedByUser',
-          attributes: ['user_id', 'name', 'email']
-        },
-        {
-          model: User,
-          as: 'assignedStaff',
-          attributes: ['user_id', 'name', 'email', 'phone']
-        }
-      ],
-      order: [
-        ['priority', 'DESC'],
-        ['reported_date', 'DESC']
-      ],
-      limit: parseInt(limit),
-      offset
-    });
+    // Try to fetch with associations, fallback to simple query if associations fail
+    let requests;
+    try {
+      const result = await MaintenanceRequest.findAndCountAll({
+        where: whereClause,
+        include: [
+          {
+            model: Room,
+            as: 'room',
+            attributes: ['inventory_id', 'unit_number', 'room_type', 'floor'],
+            required: false
+          },
+          {
+            model: Homestay,
+            as: 'homestay',
+            attributes: ['homestay_id', 'name'],
+            required: false
+          },
+          {
+            model: User,
+            as: 'reportedByUser',
+            attributes: ['user_id', 'name', 'email'],
+            required: false
+          },
+          {
+            model: User,
+            as: 'assignedStaff',
+            attributes: ['user_id', 'name', 'email', 'phone'],
+            required: false
+          }
+        ],
+        order: [
+          ['priority', 'DESC'],
+          ['reported_date', 'DESC']
+        ],
+        limit: parseInt(limit),
+        offset
+      });
+      requests = result.rows;
+    } catch (associationError) {
+      console.log('Associations failed, using simple query:', associationError.message);
+      // Fallback to simple query without associations
+      const result = await MaintenanceRequest.findAndCountAll({
+        where: whereClause,
+        order: [
+          ['priority', 'DESC'],
+          ['reported_date', 'DESC']
+        ],
+        limit: parseInt(limit),
+        offset
+      });
+      requests = result.rows;
+    }
 
     res.json({
-      requests,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: count,
-        pages: Math.ceil(count / parseInt(limit))
+      success: true,
+      data: {
+        requests,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: requests.length,
+          pages: Math.ceil(requests.length / parseInt(limit))
+        }
       }
     });
   } catch (error) {

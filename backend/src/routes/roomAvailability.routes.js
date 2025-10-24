@@ -286,12 +286,12 @@ router.get('/calendar', async (req, res) => {
 });
 
 /**
- * Get availability for specific room and date range
- * Checks if a specific room is available for the given dates
+ * Get availability for specific room type and date range
+ * Checks if a specific room type is available for the given dates
  */
-router.get('/room/:roomId', async (req, res) => {
+router.get('/room/:roomTypeId', async (req, res) => {
   try {
-    const { roomId } = req.params;
+    const { roomTypeId } = req.params;
     const { start_date, end_date } = req.query;
     
     if (!start_date || !end_date) {
@@ -301,7 +301,47 @@ router.get('/room/:roomId', async (req, res) => {
       });
     }
 
-    const query = `
+    // First, get the room type details
+    const roomTypeQuery = `
+      SELECT 
+        rt.room_type_id,
+        rt.name as room_type,
+        rt.description,
+        rt.price as base_price,
+        rt.max_people as max_occupancy,
+        rt.size_sqm,
+        rt.homestay_id,
+        h.name as homestay_name
+      FROM room_types rt
+      LEFT JOIN homestays h ON rt.homestay_id = h.homestay_id
+      WHERE rt.room_type_id = ?
+    `;
+    
+    const roomTypeResults = await sequelize.query(roomTypeQuery, {
+      replacements: [roomTypeId],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (roomTypeResults.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room type not found'
+      });
+    }
+
+    const roomType = roomTypeResults[0];
+
+    // Get images for the room type
+    const images = await sequelize.query(
+      "SELECT * FROM room_images WHERE room_type_id = ? ORDER BY image_order",
+      {
+        replacements: [roomTypeId],
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    // Now get availability for all rooms of this type
+    const availabilityQuery = `
       SELECT 
         rav.inventory_id,
         rav.room_type_id,
@@ -312,43 +352,45 @@ router.get('/room/:roomId', async (req, res) => {
         rav.current_status,
         rav.check_in_date,
         rav.check_out_date,
-        rt.homestay_id,
-        h.name as homestay_name,
-        rt.price as base_price,
-        rt.max_people as max_occupancy,
         CASE 
           WHEN rav.check_in_date IS NULL AND rav.check_out_date IS NULL THEN true
           WHEN rav.check_out_date <= ? OR rav.check_in_date >= ? THEN true
           ELSE false
         END as is_available
       FROM room_availability_view rav
-      LEFT JOIN room_types rt ON rav.room_type_id = rt.room_type_id
-      LEFT JOIN homestays h ON rt.homestay_id = h.homestay_id
-      WHERE rav.inventory_id = ?
-      ORDER BY rav.check_in_date
+      WHERE rav.room_type_id = ?
+      ORDER BY rav.unit_number
     `;
     
-    const results = await sequelize.query(query, {
-      replacements: [start_date, end_date, roomId],
+    const availabilityResults = await sequelize.query(availabilityQuery, {
+      replacements: [start_date, end_date, roomTypeId],
       type: sequelize.QueryTypes.SELECT
     });
 
-    if (results.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
-
-    // Check if room is available for the requested dates
-    const isAvailable = results.some(r => r.is_available);
+    // Calculate availability summary
+    const totalRooms = availabilityResults.length;
+    const availableRooms = availabilityResults.filter(r => r.is_available).length;
+    const isAvailable = availableRooms > 0;
 
     res.json({
       success: true,
       data: {
-        room: results[0],
+        room_type_id: roomType.room_type_id,
+        room_type: roomType.room_type,
+        description: roomType.description,
+        base_price: roomType.base_price,
+        max_occupancy: roomType.max_occupancy,
+        size_sqm: roomType.size_sqm,
+        homestay_id: roomType.homestay_id,
+        homestay_name: roomType.homestay_name,
+        images: images,
         is_available: isAvailable,
-        bookings: results.filter(r => r.check_in_date && r.check_out_date),
+        availability_summary: {
+          total_rooms: totalRooms,
+          available_rooms: availableRooms,
+          occupied_rooms: totalRooms - availableRooms
+        },
+        room_details: availabilityResults,
         date_range: {
           start: start_date,
           end: end_date
@@ -356,10 +398,10 @@ router.get('/room/:roomId', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Fetch room availability error:', error);
+    console.error('Fetch room type availability error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch room availability',
+      message: 'Failed to fetch room type availability',
       error: error.message
     });
   }
