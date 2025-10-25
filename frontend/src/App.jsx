@@ -50,12 +50,13 @@ import { DashboardRouter } from './pages/DashboardRouter';
 import { MaintenanceRequests, MaintenanceAssets, MaintenanceDashboard, MaintenanceMyTasks } from './pages/maintenance';
 import StaffDashboard from './pages/staff/StaffDashboard';
 import { RestaurantTables, MenuManagement, RestaurantOrders, OrderItems, KitchenQueue, OrderDelivery } from './pages/restaurant';
-import { StockItems, StockMovements, Suppliers, PurchaseOrders, UsageLogs, InventoryAlerts, StockBalance } from './pages/stock';
-import { StorekeeperDashboard } from './pages/dashboards';
+import { StockItems, StockMovements, Suppliers, PurchaseOrders, PurchaseOrderDetails, UsageLogs, InventoryAlerts, StockBalance, DeliveryNotes, DeliveryNoteDetails, CostReports, SupplierReports, StockUnits, ItemList, CategoryManagement, StockRequests } from './pages/stock';
+import { StorekeeperDashboard, InventoryDashboard } from './pages/dashboards';
 import { Invoices } from './pages/financial';
 import { EditHomestay } from './pages/hotels/EditHomestay';
 import { StayView } from './pages/hotels/StayView';
 import InvoiceSettings from './pages/settings/InvoiceSettings';
+import ReportSettings from './pages/settings/ReportSettings';
 import { AuthProvider } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import HotelAccessGuard from './components/HotelAccessGuard'
@@ -146,15 +147,27 @@ function App() {
           <Route path="stock/movements" element={<StockMovements />} />
           <Route path="stock/suppliers" element={<Suppliers />} />
           <Route path="stock/orders" element={<PurchaseOrders />} />
+          <Route path="stock/orders/:id" element={<PurchaseOrderDetails />} />
+          <Route path="stock/delivery-notes/:id" element={<DeliveryNoteDetails />} />
           <Route path="stock/usage-logs" element={<UsageLogs />} />
           <Route path="stock/alerts" element={<InventoryAlerts />} />
 
-          {/* Storekeeper Routes */}
-          <Route path="storekeeper/dashboard" element={<StorekeeperDashboard />} />
-          <Route path="storekeeper/stock-items" element={<StockItems />} />
-          <Route path="storekeeper/stock-balance" element={<StockBalance />} />
-          <Route path="storekeeper/suppliers" element={<Suppliers />} />
-          <Route path="storekeeper/purchase-orders" element={<PurchaseOrders />} />
+          {/* Inventory Routes */}
+          <Route path="inventory/dashboard" element={<InventoryDashboard />} />
+          <Route path="inventory/stock-items" element={<StockItems />} />
+          <Route path="inventory/stock-balance" element={<StockBalance />} />
+          <Route path="inventory/stock-movements" element={<StockMovements />} />
+          <Route path="inventory/suppliers" element={<Suppliers />} />
+          <Route path="inventory/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="inventory/delivery-notes" element={<DeliveryNotes />} />
+          <Route path="inventory/usage-logs" element={<UsageLogs />} />
+          <Route path="inventory/inventory-alerts" element={<InventoryAlerts />} />
+          <Route path="inventory/cost-reports" element={<CostReports />} />
+          <Route path="inventory/supplier-reports" element={<SupplierReports />} />
+          <Route path="inventory/stock-units" element={<StockUnits />} />
+          <Route path="inventory/item-list" element={<ItemList />} />
+          <Route path="inventory/categories" element={<CategoryManagement />} />
+          <Route path="inventory/stock-requests" element={<StockRequests />} />
 
           {/* Front Desk Routes - RECEPTIONIST */}
           <Route path="front-desk/bookings" element={<FrontDeskBookingsList />} />
@@ -179,6 +192,7 @@ function App() {
           {/* Settings Routes */}
           <Route path="settings" element={<Settings />} />
           <Route path="settings/invoice" element={<InvoiceSettings />} />
+          <Route path="settings/reports" element={<ReportSettings />} />
 
           {/* Legacy routes */}
           <Route path="hotels" element={<Hotels />} />

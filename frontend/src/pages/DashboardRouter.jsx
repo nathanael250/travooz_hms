@@ -34,13 +34,11 @@ export const DashboardRouter = () => {
       return <RestaurantDashboard />;
     
     case 'inventory':
+    case 'storekeeper':
       return <InventoryDashboard />;
     
     case 'accountant':
       return <AccountantDashboard />;
-    
-    case 'storekeeper':
-      return <StorekeeperDashboard />;
     
     default:
       return <Dashboard />; // Fallback to comprehensive dashboard

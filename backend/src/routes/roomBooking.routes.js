@@ -119,9 +119,9 @@ router.post('/create', [
         (SELECT COUNT(*) 
          FROM room_inventory 
          WHERE room_type_id = ? 
-           AND status IN ('available', 'occupied', 'reserved')
+           AND status IN ('available', 'occupied', 'reserved', 'cleaning')
         ) as total_rooms,
-        (SELECT COUNT(DISTINCT COALESCE(rb.inventory_id, rb.booking_id))
+        (SELECT COUNT(DISTINCT rb.booking_id)
          FROM room_bookings rb
          INNER JOIN bookings b ON rb.booking_id = b.booking_id
          WHERE rb.room_type_id = ?

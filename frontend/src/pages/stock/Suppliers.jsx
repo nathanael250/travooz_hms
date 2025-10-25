@@ -39,14 +39,14 @@ const Suppliers = () => {
   
   // Form states
   const [formData, setFormData] = useState({
-    supplier_name: '',
-    contact_email: '',
-    contact_phone: '',
+    name: '',
+    email: '',
+    phone: '',
+    tin: '',
+    contact_person: '',
     address: '',
-    categories_supplied: '',
-    preferred_items: '',
-    status: 'active',
-    notes: ''
+    notes: '',
+    status: 'active'
   });
 
   useEffect(() => {
@@ -62,7 +62,7 @@ const Suppliers = () => {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get('/stock-suppliers');
+      const response = await apiClient.get('/stock/suppliers');
       const suppliersData = response.data?.data || response.data || [];
       
       setSuppliers(suppliersData);
@@ -98,20 +98,20 @@ const Suppliers = () => {
 
   const handleAddSupplier = async () => {
     try {
-      const response = await apiClient.post('/stock-suppliers', formData);
+      const response = await apiClient.post('/stock/suppliers', formData);
       
       if (response.data.success) {
         toast.success('Supplier added successfully');
         setShowAddModal(false);
         setFormData({
-          supplier_name: '',
-          contact_email: '',
-          contact_phone: '',
+          name: '',
+          email: '',
+          phone: '',
+          tin: '',
+          contact_person: '',
           address: '',
-          categories_supplied: '',
-          preferred_items: '',
-          status: 'active',
-          notes: ''
+          notes: '',
+          status: 'active'
         });
         fetchSuppliers();
       }
@@ -123,7 +123,7 @@ const Suppliers = () => {
 
   const handleEditSupplier = async () => {
     try {
-      const response = await apiClient.put(`/stock-suppliers/${selectedSupplier.supplier_id}`, formData);
+      const response = await apiClient.put(`/stock/suppliers/${selectedSupplier.supplier_id}`, formData);
       
       if (response.data.success) {
         toast.success('Supplier updated successfully');
@@ -139,15 +139,15 @@ const Suppliers = () => {
 
   const handleDeleteSupplier = async (supplierId) => {
     if (window.confirm('Are you sure you want to delete this supplier?')) {
-      try {
-        const response = await apiClient.delete(`/stock-suppliers/${supplierId}`);
+    try {
+        const response = await apiClient.delete(`/stock/suppliers/${supplierId}`);
         
         if (response.data.success) {
           toast.success('Supplier deleted successfully');
-          fetchSuppliers();
+      fetchSuppliers();
         }
-      } catch (error) {
-        console.error('Error deleting supplier:', error);
+    } catch (error) {
+      console.error('Error deleting supplier:', error);
         toast.error('Failed to delete supplier');
       }
     }
@@ -157,7 +157,7 @@ const Suppliers = () => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800';
       case 'inactive': return 'bg-red-100 text-red-800';
-      case 'suspended': return 'bg-yellow-100 text-yellow-800';
+      case 'blacklisted': return 'bg-red-200 text-red-900';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -166,7 +166,7 @@ const Suppliers = () => {
     switch (status) {
       case 'active': return 'Active';
       case 'inactive': return 'Inactive';
-      case 'suspended': return 'Suspended';
+      case 'blacklisted': return 'Blacklisted';
       default: return 'Unknown';
     }
   };
@@ -209,18 +209,18 @@ const Suppliers = () => {
               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
                 <Users className="h-8 w-8 text-blue-600" />
                 Suppliers Management
-              </h1>
+        </h1>
               <p className="text-gray-600 mt-1">
                 Manage supplier information and relationships
               </p>
             </div>
-            <button
+        <button
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
+        >
               <Plus className="h-4 w-4" />
-              Add Supplier
-            </button>
+          Add Supplier
+        </button>
           </div>
         </div>
       </div>
@@ -242,6 +242,7 @@ const Suppliers = () => {
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
+              <option value="blacklisted">Blacklisted</option>
               <option value="suspended">Suspended</option>
             </select>
 
@@ -272,8 +273,8 @@ const Suppliers = () => {
             <div className="text-center py-12">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">No suppliers found</p>
-            </div>
-          ) : (
+          </div>
+        ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -285,7 +286,7 @@ const Suppliers = () => {
                       Contact
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Categories
+                      TIN
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -301,7 +302,7 @@ const Suppliers = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900">
-                            {supplier.supplier_name}
+                            {supplier.name}
                           </div>
                           <div className="text-sm text-gray-500">
                             {supplier.address}
@@ -312,20 +313,20 @@ const Suppliers = () => {
                         <div className="text-sm text-gray-900">
                           <div className="flex items-center gap-1 mb-1">
                             <Mail className="h-3 w-3 text-gray-400" />
-                            {supplier.contact_email}
-                          </div>
+                            {supplier.email}
+                  </div>
                           <div className="flex items-center gap-1">
                             <Phone className="h-3 w-3 text-gray-400" />
-                            {supplier.contact_phone}
-                          </div>
-                        </div>
+                            {supplier.phone}
+                  </div>
+                </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {supplier.categories_supplied}
+                          {supplier.tin || 'N/A'}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {supplier.preferred_items}
+                          {supplier.contact_person || 'No contact person'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -344,7 +345,7 @@ const Suppliers = () => {
                           >
                             View
                           </button>
-                          <button
+                  <button
                             onClick={() => {
                               setSelectedSupplier(supplier);
                               setFormData({
@@ -362,22 +363,22 @@ const Suppliers = () => {
                             className="px-3 py-1 bg-blue-100 text-blue-800 hover:bg-blue-200 rounded text-xs"
                           >
                             Edit
-                          </button>
-                          <button
+                  </button>
+                  <button
                             onClick={() => handleDeleteSupplier(supplier.supplier_id)}
                             className="px-3 py-1 bg-red-100 text-red-800 hover:bg-red-200 rounded text-xs"
-                          >
+                  >
                             Delete
-                          </button>
-                        </div>
+                  </button>
+                </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
+                  </div>
+                )}
+              </div>
       </div>
 
       {/* Add Supplier Modal */}
@@ -390,8 +391,8 @@ const Suppliers = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name</label>
                 <input
                   type="text"
-                  value={formData.supplier_name}
-                  onChange={(e) => setFormData({...formData, supplier_name: e.target.value})}
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -400,8 +401,8 @@ const Suppliers = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input
                     type="email"
-                    value={formData.contact_email}
-                    onChange={(e) => setFormData({...formData, contact_email: e.target.value})}
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -409,8 +410,8 @@ const Suppliers = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input
                     type="tel"
-                    value={formData.contact_phone}
-                    onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -425,21 +426,21 @@ const Suppliers = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categories Supplied</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">TIN Number</label>
                 <input
                   type="text"
-                  value={formData.categories_supplied}
-                  onChange={(e) => setFormData({...formData, categories_supplied: e.target.value})}
+                  value={formData.tin}
+                  onChange={(e) => setFormData({...formData, tin: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g., Linen, Toiletries, Kitchen"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Items</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
                 <input
                   type="text"
-                  value={formData.preferred_items}
-                  onChange={(e) => setFormData({...formData, preferred_items: e.target.value})}
+                  value={formData.contact_person}
+                  onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g., Towels, Soap, Plates"
                 />
@@ -494,8 +495,8 @@ const Suppliers = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name</label>
                 <input
                   type="text"
-                  value={formData.supplier_name}
-                  onChange={(e) => setFormData({...formData, supplier_name: e.target.value})}
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -504,8 +505,8 @@ const Suppliers = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input
                     type="email"
-                    value={formData.contact_email}
-                    onChange={(e) => setFormData({...formData, contact_email: e.target.value})}
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -513,39 +514,39 @@ const Suppliers = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input
                     type="tel"
-                    value={formData.contact_phone}
-                    onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <textarea
-                  value={formData.address}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <textarea
+                    value={formData.address}
                   onChange={(e) => setFormData({...formData, address: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="2"
-                />
-              </div>
+                    rows="2"
+                  />
+                </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categories Supplied</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">TIN Number</label>
                 <input
                   type="text"
-                  value={formData.categories_supplied}
-                  onChange={(e) => setFormData({...formData, categories_supplied: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                  value={formData.tin}
+                  onChange={(e) => setFormData({...formData, tin: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Items</label>
-                <input
-                  type="text"
-                  value={formData.preferred_items}
-                  onChange={(e) => setFormData({...formData, preferred_items: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+                  <input
+                    type="text"
+                  value={formData.contact_person}
+                  onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select
@@ -569,18 +570,18 @@ const Suppliers = () => {
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
-              <button
+                <button
                 onClick={() => setShowEditModal(false)}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button
+                >
+                  Cancel
+                </button>
+                <button
                 onClick={handleEditSupplier}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
+                >
                 Update Supplier
-              </button>
+                </button>
             </div>
           </div>
         </div>
@@ -617,11 +618,11 @@ const Suppliers = () => {
                 <p className="text-sm text-gray-900">{selectedSupplier.address}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Categories Supplied</label>
+                <label className="block text-sm font-medium text-gray-700">TIN Number</label>
                 <p className="text-sm text-gray-900">{selectedSupplier.categories_supplied}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Preferred Items</label>
+                <label className="block text-sm font-medium text-gray-700">Contact Person</label>
                 <p className="text-sm text-gray-900">{selectedSupplier.preferred_items}</p>
               </div>
               {selectedSupplier.notes && (

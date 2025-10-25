@@ -16,37 +16,39 @@ const StockSupplier = sequelize.define('StockSupplier', {
     }
   },
   name: {
-    type: DataTypes.STRING(100),
+    type: DataTypes.STRING(255),
     allowNull: false
   },
-  contact_info: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
   email: {
-    type: DataTypes.STRING(100),
+    type: DataTypes.STRING(255),
     allowNull: true
   },
   phone: {
-    type: DataTypes.STRING(20),
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  tin: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    comment: 'Tax Identification Number'
+  },
+  contact_person: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: 'Primary contact person name'
+  },
+  notes: {
+    type: DataTypes.TEXT,
     allowNull: true
   },
   address: {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  preferred_items: {
-    type: DataTypes.JSON,
+  status: {
+    type: DataTypes.ENUM('active', 'inactive', 'blacklisted'),
     allowNull: true,
-    comment: 'Array of item IDs this supplier provides'
-  },
-  payment_terms: {
-    type: DataTypes.STRING(100),
-    allowNull: true
-  },
-  is_active: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+    defaultValue: 'active'
   }
 }, {
   tableName: 'stock_suppliers',

@@ -340,36 +340,68 @@ router.get('/room/:roomTypeId', async (req, res) => {
       }
     );
 
-    // Now get availability for all rooms of this type
+    // Now get availability for all rooms of this type using the same logic as booking creation
     const availabilityQuery = `
       SELECT 
-        rav.inventory_id,
-        rav.room_type_id,
-        rav.room_type,
-        rav.unit_number as room_number,
-        rav.floor,
-        rav.room_status,
-        rav.current_status,
-        rav.check_in_date,
-        rav.check_out_date,
+        ri.inventory_id,
+        ri.room_type_id,
+        rt.name as room_type,
+        ri.unit_number as room_number,
+        ri.floor,
+        ri.status as room_status,
         CASE 
-          WHEN rav.check_in_date IS NULL AND rav.check_out_date IS NULL THEN true
-          WHEN rav.check_out_date <= ? OR rav.check_in_date >= ? THEN true
-          ELSE false
+          WHEN ri.status IN ('maintenance', 'out_of_service') THEN 'maintenance'
+          WHEN rb.booking_id IS NULL THEN 'available'
+          WHEN rb.check_in_date <= ? AND rb.check_out_date > ? THEN 'occupied'
+          WHEN rb.check_in_date > ? THEN 'reserved'
+          ELSE 'available'
+        END as current_status,
+        rb.check_in_date,
+        rb.check_out_date,
+        CASE 
+          WHEN ri.status IN ('maintenance', 'out_of_service') THEN false
+          WHEN rb.booking_id IS NULL THEN true
+          WHEN rb.check_in_date < ? AND rb.check_out_date > ? THEN false
+          ELSE true
         END as is_available
-      FROM room_availability_view rav
-      WHERE rav.room_type_id = ?
-      ORDER BY rav.unit_number
+      FROM room_inventory ri
+      LEFT JOIN room_types rt ON ri.room_type_id = rt.room_type_id
+      LEFT JOIN room_bookings rb ON ri.inventory_id = rb.inventory_id
+        AND rb.check_in_date < ?
+        AND rb.check_out_date > ?
+      LEFT JOIN bookings b ON rb.booking_id = b.booking_id
+        AND b.status IN ('confirmed', 'pending', 'checked_in')
+      WHERE ri.room_type_id = ?
+        AND ri.status IN ('available', 'occupied', 'reserved', 'cleaning')
+      ORDER BY ri.unit_number
     `;
     
     const availabilityResults = await sequelize.query(availabilityQuery, {
-      replacements: [start_date, end_date, roomTypeId],
+      replacements: [end_date, start_date, start_date, end_date, start_date, end_date, start_date, roomTypeId],
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Calculate availability summary
+    // Calculate availability summary using the same logic as booking creation
     const totalRooms = availabilityResults.length;
-    const availableRooms = availabilityResults.filter(r => r.is_available).length;
+    
+    // Count actual bookings for this room type (same logic as booking creation)
+    const bookingCountQuery = `
+      SELECT COUNT(DISTINCT rb.booking_id) as booked_count
+      FROM room_bookings rb
+      INNER JOIN bookings b ON rb.booking_id = b.booking_id
+      WHERE rb.room_type_id = ?
+        AND b.status IN ('confirmed', 'pending', 'checked_in')
+        AND rb.check_in_date < ?
+        AND rb.check_out_date > ?
+    `;
+    
+    const bookingCountResult = await sequelize.query(bookingCountQuery, {
+      replacements: [roomTypeId, end_date, start_date],
+      type: sequelize.QueryTypes.SELECT
+    });
+    
+    const bookedRooms = parseInt(bookingCountResult[0].booked_count);
+    const availableRooms = Math.max(0, totalRooms - bookedRooms);
     const isAvailable = availableRooms > 0;
 
     res.json({

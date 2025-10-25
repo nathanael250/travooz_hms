@@ -205,17 +205,6 @@ const getNavigation = (t, role) => {
         { name: 'Order Delivery Info', href: '/restaurant/delivery', icon: Truck },
       ];
 
-    case 'inventory':
-      return [
-        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
-        { name: 'Stock Items', href: '/stock/items', icon: Box },
-        { name: 'Stock Movements', href: '/stock/movements', icon: TrendingUp },
-        { name: 'Suppliers', href: '/stock/suppliers', icon: Truck },
-        { name: 'Purchase Orders', href: '/stock/orders', icon: ShoppingBag },
-        { name: 'Usage Logs', href: '/stock/usage-logs', icon: ClipboardCheck },
-        { name: 'Inventory Alerts', href: '/stock/alerts', icon: AlertTriangle },
-      ];
-
     case 'accountant':
       return [
         { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
@@ -223,21 +212,45 @@ const getNavigation = (t, role) => {
         { name: 'Accounts', href: '/financial/accounts', icon: CreditCard },
         { name: 'Account Linkage', href: '/financial/account-linkage', icon: LinkIcon },
         { name: 'Account Summary', href: '/financial/account-summary', icon: PieChart },
+        { name: 'Purchase Orders', href: '/stock/orders', icon: ShoppingBag },
+      ];
+
+    case 'inventory':
+      return [
+        { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
+        { name: 'Stock Items', href: '/inventory/stock-items', icon: Box },
+        { name: 'Stock Balance', href: '/inventory/stock-balance', icon: BarChart3 },
+        { name: 'Stock Movements', href: '/inventory/stock-movements', icon: TrendingUp },
+        { name: 'Suppliers', href: '/inventory/suppliers', icon: Truck },
+        { name: 'Purchase Orders', href: '/inventory/purchase-orders', icon: ShoppingBag },
+        { name: 'Delivery Notes', href: '/inventory/delivery-notes', icon: ClipboardCheck },
+        { name: 'Usage Logs', href: '/inventory/usage-logs', icon: ClipboardCheck },
+        { name: 'Inventory Alerts', href: '/inventory/inventory-alerts', icon: AlertTriangle },
+        { name: 'Cost Reports', href: '/inventory/cost-reports', icon: TrendingUp },
+        { name: 'Supplier Reports', href: '/inventory/supplier-reports', icon: PieChart },
+        { name: 'Stock Units', href: '/inventory/stock-units', icon: Boxes },
+        { name: 'Item List', href: '/inventory/item-list', icon: ListIcon },
+        { name: 'Categories', href: '/inventory/categories', icon: PackageIcon },
+        { name: 'Stock Requests', href: '/inventory/stock-requests', icon: ClipboardList },
       ];
 
     case 'storekeeper':
       return [
         { name: t('navigation.dashboard'), href: '/dashboard', icon: Home },
-        { name: 'Stock Items', href: '/storekeeper/stock-items', icon: Box },
-        { name: 'Stock Balance', href: '/storekeeper/stock-balance', icon: BarChart3 },
-        { name: 'Suppliers', href: '/storekeeper/suppliers', icon: Truck },
-        { name: 'Purchase Orders', href: '/storekeeper/purchase-orders', icon: ShoppingBag },
-        { name: 'Delivery Notes', href: '/storekeeper/delivery-notes', icon: ClipboardCheck },
-        { name: 'Cost Reports', href: '/storekeeper/cost-reports', icon: TrendingUp },
-        { name: 'Supplier Reports', href: '/storekeeper/supplier-reports', icon: PieChart },
-        { name: 'Stock Units', href: '/storekeeper/stock-units', icon: Boxes },
-        { name: 'Item List', href: '/storekeeper/item-list', icon: ListIcon },
-        { name: 'Categories', href: '/storekeeper/categories', icon: PackageIcon },
+        { name: 'Stock Items', href: '/inventory/stock-items', icon: Box },
+        { name: 'Stock Balance', href: '/inventory/stock-balance', icon: BarChart3 },
+        { name: 'Stock Movements', href: '/inventory/stock-movements', icon: TrendingUp },
+        { name: 'Suppliers', href: '/inventory/suppliers', icon: Truck },
+        { name: 'Purchase Orders', href: '/inventory/purchase-orders', icon: ShoppingBag },
+        { name: 'Delivery Notes', href: '/inventory/delivery-notes', icon: ClipboardCheck },
+        { name: 'Usage Logs', href: '/inventory/usage-logs', icon: ClipboardCheck },
+        { name: 'Inventory Alerts', href: '/inventory/inventory-alerts', icon: AlertTriangle },
+        { name: 'Cost Reports', href: '/inventory/cost-reports', icon: TrendingUp },
+        { name: 'Supplier Reports', href: '/inventory/supplier-reports', icon: PieChart },
+        { name: 'Stock Units', href: '/inventory/stock-units', icon: Boxes },
+        { name: 'Item List', href: '/inventory/item-list', icon: ListIcon },
+        { name: 'Categories', href: '/inventory/categories', icon: PackageIcon },
+        { name: 'Stock Requests', href: '/inventory/stock-requests', icon: ClipboardList },
       ];
 
     default:
@@ -272,7 +285,7 @@ const Sidebar = () => {
   const { t } = useTranslation();
 
   const allNavigation = getNavigation(t, user?.role);
-  // For now, show all navigation (we'll implement role filtering later)
+  // Show role-specific navigation
   let navigation = allNavigation;
   // Adjust URLs for specific roles
   navigation = adjustNavigationForRole(navigation, user?.role);

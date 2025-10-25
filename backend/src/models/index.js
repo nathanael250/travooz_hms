@@ -266,11 +266,7 @@ MenuItemIngredient.belongsTo(StockItem, { foreignKey: 'stock_item_id', as: 'stoc
 Homestay.hasMany(StockItem, { foreignKey: 'homestay_id', as: 'stockItems' });
 StockItem.belongsTo(Homestay, { foreignKey: 'homestay_id', as: 'homestay' });
 
-StockSupplier.hasMany(StockItem, { foreignKey: 'default_supplier_id', as: 'suppliedItems' });
-StockItem.belongsTo(StockSupplier, { foreignKey: 'default_supplier_id', as: 'supplier' });
-
-FinancialAccount.hasMany(StockItem, { foreignKey: 'account_id', as: 'stockItems' });
-StockItem.belongsTo(FinancialAccount, { foreignKey: 'account_id', as: 'account' });
+// Removed associations for deleted columns: default_supplier_id, account_id
 
 StockItem.hasMany(StockMovement, { foreignKey: 'item_id', as: 'movements' });
 StockMovement.belongsTo(StockItem, { foreignKey: 'item_id', as: 'item' });
@@ -324,17 +320,9 @@ StockItem.hasMany(StockOrderItem, { foreignKey: 'item_id', as: 'orderItems' });
 StockOrderItem.belongsTo(StockItem, { foreignKey: 'item_id', as: 'item' });
 
 // New Stock Management associations
-InventoryCategory.hasMany(InventoryCategory, { foreignKey: 'parent_category_id', as: 'subcategories' });
-InventoryCategory.belongsTo(InventoryCategory, { foreignKey: 'parent_category_id', as: 'parentCategory' });
+// Removed self-referencing associations for simplified category structure
 
-InventoryCategory.hasMany(StockItem, { foreignKey: 'category_id', as: 'items' });
-StockItem.belongsTo(InventoryCategory, { foreignKey: 'category_id', as: 'categoryInfo' });
-
-StockUnit.hasMany(StockUnit, { foreignKey: 'base_unit_id', as: 'convertedUnits' });
-StockUnit.belongsTo(StockUnit, { foreignKey: 'base_unit_id', as: 'baseUnit' });
-
-StockUnit.hasMany(StockItem, { foreignKey: 'unit_id', as: 'items' });
-StockItem.belongsTo(StockUnit, { foreignKey: 'unit_id', as: 'unitInfo' });
+// Removed associations for deleted columns: category_id, unit_id
 
 StockOrder.hasMany(DeliveryNote, { foreignKey: 'order_id', as: 'deliveryNotes' });
 DeliveryNote.belongsTo(StockOrder, { foreignKey: 'order_id', as: 'order' });

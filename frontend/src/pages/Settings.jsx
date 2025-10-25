@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { 
+import {
   FileText, 
   User, 
   Bell, 
@@ -11,9 +11,12 @@ import {
   Globe,
   Database,
   Key,
-  Monitor
+  Monitor,
+  Printer,
+  Layout
 } from 'lucide-react';
 import InvoiceSettings from './settings/InvoiceSettings';
+import ReportSettings from './settings/ReportSettings';
 
 export const Settings = () => {
   const [activeTab, setActiveTab] = useState('invoice');
@@ -25,6 +28,13 @@ export const Settings = () => {
       icon: FileText, 
       description: 'Customize invoice appearance and branding',
       component: InvoiceSettings
+    },
+    { 
+      id: 'reports', 
+      name: 'Report Settings', 
+      icon: Printer, 
+      description: 'Configure report layouts and printing options',
+      component: ReportSettings
     },
     { 
       id: 'profile', 

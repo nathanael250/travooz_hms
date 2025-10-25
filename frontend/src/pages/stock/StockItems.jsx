@@ -12,7 +12,11 @@ import {
   Eye,
   Minus,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Save,
+  Printer,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +30,8 @@ const StockItems = () => {
   const [items, setItems] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
   const [error, setError] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
   
   // Filter states
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -37,23 +43,33 @@ const StockItems = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeductModal, setShowDeductModal] = useState(false);
+  const [showRecordStockModal, setShowRecordStockModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   
-  // Form states
+  // Form states for item creation (without quantity)
   const [formData, setFormData] = useState({
-    item_name: '',
-    unit: '',
-    current_quantity: '',
+    name: '',
+    description: '',
     category: '',
-    supplier_id: '',
-    reorder_threshold: '',
+    unit: '',
+    reorder_level: '',
     unit_price: '',
-    description: ''
+    status: 'active'
   });
+  
+  // Form states for initial stock recording
+  const [stockFormData, setStockFormData] = useState({
+    item_id: '',
+    quantity: '',
+    unit_price: ''
+  });
+  
   const [deductQuantity, setDeductQuantity] = useState('');
 
   useEffect(() => {
     fetchStockItems();
+    fetchCategories();
+    fetchUnits();
   }, []);
 
   useEffect(() => {
@@ -65,7 +81,7 @@ const StockItems = () => {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get('/stock-items');
+      const response = await apiClient.get('/stock/items');
       const stockItems = response.data?.data || response.data || [];
       
       setItems(stockItems);
@@ -75,6 +91,28 @@ const StockItems = () => {
       setItems([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await apiClient.get('/inventory-categories');
+      const categoriesData = response.data?.data || response.data || [];
+      setCategories(categoriesData);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      // Don't show error toast for categories, just log it
+    }
+  };
+
+  const fetchUnits = async () => {
+    try {
+      const response = await apiClient.get('/stock-units');
+      const unitsData = response.data?.data || response.data || [];
+      setUnits(unitsData);
+    } catch (err) {
+      console.error('Error fetching units:', err);
+      // Don't show error toast for units, just log it
     }
   };
 
@@ -103,7 +141,7 @@ const StockItems = () => {
     // Low stock filter
     if (lowStockFilter) {
       filtered = filtered.filter(item => 
-        parseFloat(item.current_quantity || 0) <= parseFloat(item.reorder_threshold || 0)
+        parseFloat(item.current_quantity || 0) <= parseFloat(item.reorder_level || 0)
       );
     }
 
@@ -112,20 +150,19 @@ const StockItems = () => {
 
   const handleAddItem = async () => {
     try {
-      const response = await apiClient.post('/stock-items', formData);
+      const response = await apiClient.post('/stock/items', formData);
       
       if (response.data.success) {
         toast.success('Item added successfully');
         setShowAddModal(false);
         setFormData({
-          item_name: '',
-          unit: '',
-          current_quantity: '',
+          name: '',
+          description: '',
           category: '',
-          supplier_id: '',
-          reorder_threshold: '',
+          unit: '',
+          reorder_level: '',
           unit_price: '',
-          description: ''
+          status: 'active'
         });
         fetchStockItems();
       }
@@ -137,7 +174,7 @@ const StockItems = () => {
 
   const handleEditItem = async () => {
     try {
-      const response = await apiClient.put(`/stock-items/${selectedItem.item_id}`, formData);
+      const response = await apiClient.put(`/stock/items/${selectedItem.item_id}`, formData);
       
       if (response.data.success) {
         toast.success('Item updated successfully');
@@ -147,8 +184,67 @@ const StockItems = () => {
       }
     } catch (error) {
       console.error('Error updating item:', error);
-      toast.error('Failed to update item');
     }
+  };
+
+  const handleRecordInitialStock = async () => {
+    try {
+      // Update the item with initial quantity and price
+      const updateData = {
+        current_quantity: parseInt(stockFormData.quantity),
+        unit_price: parseFloat(stockFormData.unit_price)
+      };
+      
+      const response = await apiClient.put(`/stock/items/${stockFormData.item_id}`, updateData);
+      
+      if (response.data.success) {
+        toast.success('Initial stock recorded successfully');
+        setShowRecordStockModal(false);
+        setStockFormData({
+          item_id: '',
+          quantity: '',
+          unit_price: ''
+        });
+        fetchStockItems();
+      }
+    } catch (error) {
+      console.error('Error recording initial stock:', error);
+      toast.error('Failed to record initial stock');
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportExcel = () => {
+    // Create CSV content
+    const headers = ['Item Name', 'Category', 'Unit', 'Current Quantity', 'Reorder Level', 'Unit Price', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredItems.map(item => [
+        `"${item.name || item.item_name || ''}"`,
+        `"${item.category || ''}"`,
+        `"${item.unit || ''}"`,
+        item.current_quantity || 0,
+        item.reorder_level || 0,
+        item.unit_price || 0,
+        `"${item.status || 'active'}"`
+      ].join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `stock-items-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Stock items exported successfully');
   };
 
   const handleDeductQuantity = async () => {
@@ -160,7 +256,7 @@ const StockItems = () => {
         return;
       }
 
-      const response = await apiClient.patch(`/stock-items/${selectedItem.item_id}`, {
+      const response = await apiClient.patch(`/stock/items/${selectedItem.item_id}`, {
         current_quantity: newQuantity
       });
       
@@ -179,7 +275,7 @@ const StockItems = () => {
 
   const handleArchiveItem = async (itemId) => {
     try {
-      const response = await apiClient.patch(`/stock-items/${itemId}`, {
+      const response = await apiClient.patch(`/stock/items/${itemId}`, {
         status: 'archived'
       });
       
@@ -205,7 +301,7 @@ const StockItems = () => {
 
   const getStatusColor = (item) => {
     const quantity = parseFloat(item.current_quantity || 0);
-    const threshold = parseFloat(item.reorder_threshold || 0);
+    const threshold = parseFloat(item.reorder_level || 0);
     
     if (quantity <= threshold) return 'bg-red-100 text-red-800';
     if (quantity <= threshold * 1.5) return 'bg-yellow-100 text-yellow-800';
@@ -214,7 +310,7 @@ const StockItems = () => {
 
   const getStatusText = (item) => {
     const quantity = parseFloat(item.current_quantity || 0);
-    const threshold = parseFloat(item.reorder_threshold || 0);
+    const threshold = parseFloat(item.reorder_level || 0);
     
     if (quantity <= threshold) return 'Low Stock';
     if (quantity <= threshold * 1.5) return 'Medium Stock';
@@ -264,13 +360,36 @@ const StockItems = () => {
                 Manage inventory items, quantities, and stock levels
               </p>
             </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowRecordStockModal(true)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Record Initial Stock
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Item
+              </button>
+              <button
+                onClick={() => handlePrint()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 border border-blue-300"
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </button>
         <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                onClick={() => handleExportExcel()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 border border-green-300"
         >
-              <Plus className="h-4 w-4" />
-              Add Item
+                <FileSpreadsheet className="h-4 w-4" />
+                Export Excel
         </button>
+            </div>
           </div>
         </div>
       </div>
@@ -392,7 +511,7 @@ const StockItems = () => {
                           {item.current_quantity} {item.unit}
                         </div>
                         <div className="text-xs text-gray-500">
-                          Threshold: {item.reorder_threshold}
+                          Threshold: {item.reorder_level}
                         </div>
                     </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -414,7 +533,7 @@ const StockItems = () => {
                                 current_quantity: item.current_quantity,
                                 category: item.category,
                                 supplier_id: item.supplier_id,
-                                reorder_threshold: item.reorder_threshold,
+                                reorder_level: item.reorder_level,
                                 unit_price: item.unit_price,
                                 description: item.description
                               });
@@ -423,6 +542,19 @@ const StockItems = () => {
                             className="px-3 py-1 bg-blue-100 text-blue-800 hover:bg-blue-200 rounded text-xs"
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setStockFormData({
+                                item_id: item.item_id,
+                                quantity: '',
+                                unit_price: item.unit_price || ''
+                              });
+                              setShowRecordStockModal(true);
+                            }}
+                            className="px-3 py-1 bg-green-100 text-green-800 hover:bg-green-200 rounded text-xs ml-1"
+                          >
+                            Record Stock
                           </button>
                       <button
                             onClick={() => {
@@ -460,47 +592,50 @@ const StockItems = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
                 <input
                   type="text"
-                  value={formData.item_name}
-                  onChange={(e) => setFormData({...formData, item_name: e.target.value})}
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.unit}
                     onChange={(e) => setFormData({...formData, unit: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    value={formData.current_quantity}
-                    onChange={(e) => setFormData({...formData, current_quantity: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  >
+                    <option value="">Select Unit</option>
+                    {units.map(unit => (
+                      <option key={unit.unit_id} value={unit.unit_name}>
+                        {unit.unit_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
                 <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <input
-                  type="text"
+                <select
                   value={formData.category}
                   onChange={(e) => setFormData({...formData, category: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Category</option>
+                  {categories.map(category => (
+                    <option key={category.category_id} value={category.category_name}>
+                      {category.category_name}
+                    </option>
+                  ))}
+                </select>
                 </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Threshold</label>
                   <input
                     type="number"
-                    value={formData.reorder_threshold}
-                    onChange={(e) => setFormData({...formData, reorder_threshold: e.target.value})}
+                    value={formData.reorder_level}
+                    onChange={(e) => setFormData({...formData, reorder_level: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -552,47 +687,50 @@ const StockItems = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
                 <input
                   type="text"
-                  value={formData.item_name}
-                  onChange={(e) => setFormData({...formData, item_name: e.target.value})}
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.unit}
                     onChange={(e) => setFormData({...formData, unit: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    value={formData.current_quantity}
-                    onChange={(e) => setFormData({...formData, current_quantity: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  >
+                    <option value="">Select Unit</option>
+                    {units.map(unit => (
+                      <option key={unit.unit_id} value={unit.unit_name}>
+                        {unit.unit_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <input
-                  type="text"
+                <select
                   value={formData.category}
                   onChange={(e) => setFormData({...formData, category: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+                >
+                  <option value="">Select Category</option>
+                  {categories.map(category => (
+                    <option key={category.category_id} value={category.category_name}>
+                      {category.category_name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Threshold</label>
                   <input
                     type="number"
-                    value={formData.reorder_threshold}
-                    onChange={(e) => setFormData({...formData, reorder_threshold: e.target.value})}
+                    value={formData.reorder_level}
+                    onChange={(e) => setFormData({...formData, reorder_level: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -607,15 +745,15 @@ const StockItems = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={formData.description}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                />
+                    rows="3"
+                  />
+                </div>
               </div>
-            </div>
             <div className="flex justify-end space-x-3 mt-6">
               <button
                 onClick={() => setShowEditModal(false)}
@@ -673,6 +811,83 @@ const StockItems = () => {
                 Deduct Quantity
                 </button>
               </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record Initial Stock Modal */}
+      {showRecordStockModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Record Item Quantity</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ITEM NAME*
+              </label>
+              <select
+                value={stockFormData.item_id}
+                onChange={(e) => setStockFormData({...stockFormData, item_id: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Choose Item...</option>
+                {items.map(item => (
+                  <option key={item.item_id} value={item.item_id}>
+                    {item.name || item.item_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                QUANTITY*
+              </label>
+              <input
+                type="number"
+                value={stockFormData.quantity}
+                onChange={(e) => setStockFormData({...stockFormData, quantity: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter quantity"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                PRICE (RWF)*
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={stockFormData.unit_price}
+                onChange={(e) => setStockFormData({...stockFormData, unit_price: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter price"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowRecordStockModal(false);
+                  setStockFormData({
+                    item_id: '',
+                    quantity: '',
+                    unit_price: ''
+                  });
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Reset
+              </button>
+              <button
+                onClick={handleRecordInitialStock}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

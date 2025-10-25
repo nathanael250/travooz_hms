@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
  * - maintenance -> /maintenance/dashboard
  * - restaurant -> /restaurant/tables (or restaurant dashboard)
  * - inventory -> /stock/items (or inventory dashboard)
- * - accountant -> /financial/invoices (or accountant dashboard)
+ * - accountant -> /dashboard (accountant dashboard)
  * - manager, vendor, admin -> /dashboard (full dashboard)
  */
 export const RoleBasedRedirect = () => {
@@ -41,10 +41,11 @@ export const RoleBasedRedirect = () => {
       return <Navigate to="/restaurant/dashboard" replace />;
 
     case 'inventory':
+    case 'storekeeper':
       return <Navigate to="/inventory/dashboard" replace />;
-
+    
     case 'accountant':
-      return <Navigate to="/accountant/dashboard" replace />;
+      return <Navigate to="/dashboard" replace />;
 
     // Hotel Manager, Vendor, Admin, and other roles get the main dashboard
     case 'manager':

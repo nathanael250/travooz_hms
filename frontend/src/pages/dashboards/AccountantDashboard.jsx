@@ -9,7 +9,9 @@ import {
   CheckCircle,
   Calendar,
   PieChart,
-  Receipt
+  Receipt,
+  ShoppingCart,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -32,7 +34,8 @@ export const AccountantDashboard = () => {
     revenueBySource: [],
     outstandingInvoicesList: [],
     expensesSummary: {},
-    accountSummary: {}
+    accountSummary: {},
+    pendingPurchaseOrders: []
   });
   const [error, setError] = useState(null);
 
@@ -51,29 +54,45 @@ export const AccountantDashboard = () => {
       const [
         invoicesResponse,
         paymentsResponse,
-        accountsResponse
+        accountsResponse,
+        purchaseOrdersResponse
       ] = await Promise.allSettled([
         apiClient.get('/invoices'),
-        apiClient.get('/reports/invoices'),
-        apiClient.get('/financial-accounts')
+        apiClient.get('/payment-transactions'),
+        apiClient.get('/financial-accounts'),
+        apiClient.get('/stock/orders?status=pending')
       ]);
 
       // Process invoices data
       let invoices = [];
       if (invoicesResponse.status === 'fulfilled') {
         invoices = invoicesResponse.value.data?.data || invoicesResponse.value.data || [];
+      } else {
+        console.warn('Failed to fetch invoices:', invoicesResponse.reason);
       }
 
       // Process payments data
       let payments = [];
       if (paymentsResponse.status === 'fulfilled') {
         payments = paymentsResponse.value.data?.data || paymentsResponse.value.data || [];
+      } else {
+        console.warn('Failed to fetch payments:', paymentsResponse.reason);
       }
 
       // Process accounts data
       let accounts = [];
       if (accountsResponse.status === 'fulfilled') {
         accounts = accountsResponse.value.data || [];
+      } else {
+        console.warn('Failed to fetch accounts:', accountsResponse.reason);
+      }
+
+      // Process purchase orders data
+      let purchaseOrders = [];
+      if (purchaseOrdersResponse.status === 'fulfilled') {
+        purchaseOrders = purchaseOrdersResponse.value.data?.data || purchaseOrdersResponse.value.data || [];
+      } else {
+        console.warn('Failed to fetch purchase orders:', purchaseOrdersResponse.reason);
       }
 
       // Calculate financial metrics
@@ -133,13 +152,31 @@ export const AccountantDashboard = () => {
           daysOverdue: calculateDaysOverdue(invoice.due_date || invoice.invoice_date)
         }));
 
+      // Process pending purchase orders
+      const pendingPurchaseOrders = purchaseOrders
+        .filter(order => order.status === 'pending')
+        .slice(0, 5)
+        .map(order => {
+          console.log('Processing order:', order.order_id, 'status:', order.status, 'type:', typeof order.status);
+          return {
+            id: order.order_id,
+            orderNumber: order.order_number || `PO-${order.order_id}`,
+            supplier: order.supplier?.name || 'Unknown Supplier',
+            amount: parseFloat(order.total_amount) || 0,
+            orderDate: order.order_date || order.created_at,
+            itemsCount: order.items?.length || 0,
+            expectedDelivery: order.expected_delivery_date,
+            status: order.status // Include status for debugging
+          };
+        });
+
       // Mock expenses summary (would need separate API)
       const expensesSummary = {
-        salaries: 12000000,
-        utilities: 3500000,
-        supplies: 2800000,
-        maintenance: 1900000,
-        other: 1500000
+      salaries: 12000000,
+      utilities: 3500000,
+      supplies: 2800000,
+      maintenance: 1900000,
+      other: 1500000
       };
 
       // Calculate account summary
@@ -163,7 +200,8 @@ export const AccountantDashboard = () => {
           totalLiabilities,
           netProfit,
           profitMargin
-        }
+        },
+        pendingPurchaseOrders
       });
 
     } catch (err) {
@@ -177,11 +215,35 @@ export const AccountantDashboard = () => {
         outstandingInvoices: 0,
         pendingPayments: 0,
         recentTransactions: [],
-        monthlyRevenue: [],
-        revenueBySource: [],
+        monthlyRevenue: [
+          { month: 'Jan', revenue: 0, target: 0 },
+          { month: 'Feb', revenue: 0, target: 0 },
+          { month: 'Mar', revenue: 0, target: 0 },
+          { month: 'Apr', revenue: 0, target: 0 },
+          { month: 'May', revenue: 0, target: 0 },
+          { month: 'Jun', revenue: 0, target: 0 }
+        ],
+        revenueBySource: [
+          { name: 'Room Bookings', amount: 0, percentage: 0 },
+          { name: 'Restaurant', amount: 0, percentage: 0 },
+          { name: 'Laundry', amount: 0, percentage: 0 },
+          { name: 'Other Services', amount: 0, percentage: 0 }
+        ],
         outstandingInvoicesList: [],
-        expensesSummary: {},
-        accountSummary: {}
+        expensesSummary: {
+          salaries: 0,
+          utilities: 0,
+          supplies: 0,
+          maintenance: 0,
+          other: 0
+        },
+        accountSummary: {
+          totalAssets: 0,
+          totalLiabilities: 0,
+          netProfit: 0,
+          profitMargin: 0
+        },
+        pendingPurchaseOrders: []
       });
     } finally {
       setLoading(false);
@@ -262,6 +324,25 @@ export const AccountantDashboard = () => {
     }));
   };
 
+  const handleVerifyPurchaseOrder = async (orderId) => {
+    try {
+      console.log(`Verifying purchase order ${orderId}...`);
+      const response = await apiClient.patch(`/stock/orders/${orderId}`, {
+        status: 'verified'
+      });
+      
+      console.log('Verification response:', response.data);
+      
+      if (response.data.success) {
+        toast.success('Purchase order verified successfully');
+        fetchFinancialData(); // Refresh the dashboard
+      }
+    } catch (error) {
+      console.error('Error verifying purchase order:', error);
+      toast.error('Failed to verify purchase order');
+    }
+  };
+
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
 
   if (loading) {
@@ -278,14 +359,23 @@ export const AccountantDashboard = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-gray-600 mb-4 text-sm">
+            Some financial data may not be available yet. You can still access invoices, accounts, and purchase orders from the menu.
+          </p>
           <button 
             onClick={fetchFinancialData}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 mr-2"
           >
             Retry
+          </button>
+          <button 
+            onClick={() => setError(null)}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Continue Anyway
           </button>
         </div>
       </div>
@@ -473,6 +563,61 @@ export const AccountantDashboard = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Pending Purchase Orders */}
+        <div className="bg-white rounded-lg shadow-sm p-4 border-2 border-purple-200">
+          <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5 text-purple-600" />
+            Pending Purchase Orders ({dashboardData.pendingPurchaseOrders.length})
+          </h3>
+          <div className="space-y-3">
+            {dashboardData.pendingPurchaseOrders.length === 0 ? (
+              <div className="text-center py-4">
+                <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500 text-sm">No pending purchase orders</p>
+              </div>
+            ) : (
+              dashboardData.pendingPurchaseOrders.map((order) => (
+                <div key={order.id} className="p-3 rounded-lg border-l-4 bg-purple-50 border-purple-500">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="font-medium text-gray-900">{order.orderNumber}</div>
+                      <div className="text-sm text-gray-600">{order.supplier}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-purple-600">
+                        RWF {order.amount.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {order.itemsCount} items
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Order Date: <span className="font-medium">
+                        {new Date(order.orderDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleVerifyPurchaseOrder(order.id)}
+                      className="px-3 py-1 bg-purple-100 text-purple-800 hover:bg-purple-200 rounded text-xs font-medium transition-colors"
+                    >
+                      Verify Order
+                    </button>
+                  </div>
+                  {order.expectedDelivery && (
+                    <div className="text-sm text-gray-600 mt-1">
+                      Expected Delivery: <span className="font-medium">
+                        {new Date(order.expectedDelivery).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 

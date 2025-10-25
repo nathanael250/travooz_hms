@@ -16,14 +16,6 @@ const InventoryCategory = sequelize.define('InventoryCategory', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  parent_category_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'inventory_categories',
-      key: 'category_id'
-    }
-  },
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true

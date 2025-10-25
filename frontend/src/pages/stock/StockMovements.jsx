@@ -41,9 +41,11 @@ const StockMovements = () => {
       if (filterItem) params.item_id = filterItem;
 
       const response = await stockService.getStockMovements(params);
-      setMovements(response.data || []);
+      const movementsData = response.data?.data || response.data || [];
+      setMovements(Array.isArray(movementsData) ? movementsData : []);
     } catch (error) {
       console.error('Error fetching movements:', error);
+      setMovements([]);
     } finally {
       setLoading(false);
     }
@@ -52,18 +54,22 @@ const StockMovements = () => {
   const fetchItems = async () => {
     try {
       const response = await stockService.getStockItems();
-      setItems(response.data || []);
+      const itemsData = response.data?.data || response.data || [];
+      setItems(Array.isArray(itemsData) ? itemsData : []);
     } catch (error) {
       console.error('Error fetching items:', error);
+      setItems([]);
     }
   };
 
   const fetchSuppliers = async () => {
     try {
       const response = await stockService.getSuppliers();
-      setSuppliers(response.data || []);
+      const suppliersData = response.data?.data || response.data || [];
+      setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
+      setSuppliers([]);
     }
   };
 
@@ -143,8 +149,10 @@ const StockMovements = () => {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All Items</option>
-            {items.map(item => (
-              <option key={item.item_id} value={item.item_id}>{item.name}</option>
+            {Array.isArray(items) && items.map(item => (
+              <option key={item.item_id || item.id} value={item.item_id || item.id}>
+                {item.name || item.item_name}
+              </option>
             ))}
           </select>
           <select
@@ -158,7 +166,7 @@ const StockMovements = () => {
             ))}
           </select>
           <div className="text-sm text-gray-600 flex items-center">
-            Total Movements: <span className="font-bold ml-2">{movements.length}</span>
+            Total Movements: <span className="font-bold ml-2">{Array.isArray(movements) ? movements.length : 0}</span>
           </div>
         </div>
       </div>
@@ -179,7 +187,7 @@ const StockMovements = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {movements.length === 0 ? (
+            {!Array.isArray(movements) || movements.length === 0 ? (
               <tr>
                 <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                   No movements found
@@ -249,9 +257,9 @@ const StockMovements = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select item</option>
-                    {items.map(item => (
-                      <option key={item.item_id} value={item.item_id}>
-                        {item.name} (Current: {item.quantity} {item.unit})
+                    {Array.isArray(items) && items.map(item => (
+                      <option key={item.item_id || item.id} value={item.item_id || item.id}>
+                        {item.name || item.item_name} (Current: {item.quantity || 0} {item.unit || ''})
                       </option>
                     ))}
                   </select>
@@ -306,8 +314,10 @@ const StockMovements = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select supplier</option>
-                    {suppliers.map(s => (
-                      <option key={s.supplier_id} value={s.supplier_id}>{s.name}</option>
+                    {Array.isArray(suppliers) && suppliers.map(s => (
+                      <option key={s.supplier_id || s.id} value={s.supplier_id || s.id}>
+                        {s.name || s.supplier_name}
+                      </option>
                     ))}
                   </select>
                 </div>

@@ -41,8 +41,8 @@ const StockOrder = sequelize.define('StockOrder', {
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('draft', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'),
-    defaultValue: 'draft'
+    type: DataTypes.ENUM('pending', 'verified', 'approved', 'sent', 'received', 'cancelled'),
+    defaultValue: 'pending'
   },
   total_amount: {
     type: DataTypes.DECIMAL(12, 2),

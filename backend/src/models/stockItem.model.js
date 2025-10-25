@@ -32,34 +32,25 @@ const StockItem = sequelize.define('StockItem', {
     allowNull: true,
     comment: 'e.g., pieces, liters, kg'
   },
-  quantity: {
+  current_quantity: {
     type: DataTypes.INTEGER,
+    allowNull: true,
     defaultValue: 0
-  },
-  current_stock: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-    comment: 'Calculated from movements'
   },
   reorder_level: {
     type: DataTypes.INTEGER,
+    allowNull: true,
     defaultValue: 0
   },
-  default_supplier_id: {
-    type: DataTypes.INTEGER,
+  unit_price: {
+    type: DataTypes.DECIMAL(10, 2),
     allowNull: true,
-    references: {
-      model: 'stock_suppliers',
-      key: 'supplier_id'
-    }
+    defaultValue: 0.00
   },
-  account_id: {
-    type: DataTypes.INTEGER,
+  status: {
+    type: DataTypes.ENUM('active', 'inactive', 'discontinued'),
     allowNull: true,
-    references: {
-      model: 'financial_accounts',
-      key: 'account_id'
-    }
+    defaultValue: 'active'
   }
 }, {
   tableName: 'stock_items',

@@ -8,7 +8,12 @@ import {
   CheckCircle,
   Package,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Printer,
+  Calendar,
+  TrendingDown,
+  TrendingUp,
+  Minus
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -23,40 +28,72 @@ const StockBalance = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [error, setError] = useState(null);
   
-  // Filter states
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [supplierFilter, setSupplierFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  // Date range states - set to include existing stock movements
+  const [fromDate, setFromDate] = useState('2025-10-25');
+  const [toDate, setToDate] = useState('2025-10-25');
   
-  // Export state
-  const [exporting, setExporting] = useState(false);
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Company info state
+  const [companyInfo, setCompanyInfo] = useState({
+    logo_url: '',
+    company_name: '',
+    tagline: '',
+    invoice_email: '',
+    invoice_phone: '',
+    tax_id: '',
+    registration_number: ''
+  });
 
   useEffect(() => {
     fetchStockBalance();
+    fetchCompanyInfo();
   }, []);
 
   useEffect(() => {
     applyFilters();
-  }, [stockData, categoryFilter, supplierFilter, searchTerm, statusFilter]);
+  }, [stockData, searchTerm]);
+
+  const applyFilters = () => {
+    let filtered = [...stockData];
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(item =>
+        item.item_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.unit?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    setFilteredData(filtered);
+  };
 
   const fetchStockBalance = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get('/stock-items');
-      const stockItems = response.data?.data || response.data || [];
+      // Build query parameters for date range
+      const params = new URLSearchParams();
+      if (fromDate) params.append('from_date', fromDate);
+      if (toDate) params.append('to_date', toDate);
+
+      const response = await apiClient.get(`/stock/balance?${params.toString()}`);
+      const responseData = response.data?.data || response.data || {};
       
-      // Process stock balance data
-      const balanceData = stockItems.map(item => ({
+      const balanceData = responseData.items || [];
+      const summary = responseData.summary || {};
+      
+      // Process balance data
+      const processedData = balanceData.map(item => ({
         ...item,
-        stock_value: parseFloat(item.current_quantity || 0) * parseFloat(item.unit_price || 0),
+        item_name: item.item_name || item.name,
         stock_status: getStockStatus(item),
-        days_since_update: getDaysSinceUpdate(item.updated_at || item.created_at)
       }));
       
-      setStockData(balanceData);
+      setStockData(processedData);
     } catch (err) {
       console.error('Error fetching stock balance:', err);
       setError('Failed to load stock balance data');
@@ -66,135 +103,116 @@ const StockBalance = () => {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...stockData];
-
-    // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(item => item.category === categoryFilter);
+  const fetchCompanyInfo = async () => {
+    try {
+      const response = await apiClient.get('/invoice-settings');
+      if (response.data?.success) {
+        const settings = response.data.data;
+        setCompanyInfo({
+          logo_url: settings.logo_url || '',
+          company_name: settings.company_name || '',
+          tagline: settings.tagline || '',
+          invoice_email: settings.invoice_email || '',
+          invoice_phone: settings.invoice_phone || '',
+          tax_id: settings.tax_id || '',
+          registration_number: settings.registration_number || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching company info:', error);
+      // Use default values if API fails
     }
+  };
 
-    // Supplier filter
-    if (supplierFilter !== 'all') {
-      filtered = filtered.filter(item => item.supplier_id === supplierFilter);
-    }
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(item =>
-        item.item_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(item => item.stock_status === statusFilter);
-    }
-
-    setFilteredData(filtered);
+  const handleApplyFilters = () => {
+    fetchStockBalance();
   };
 
   const getStockStatus = (item) => {
     const quantity = parseFloat(item.current_quantity || 0);
-    const threshold = parseFloat(item.reorder_threshold || 0);
+    const threshold = parseFloat(item.reorder_level || 0);
     
-    if (quantity <= threshold) return 'low';
-    if (quantity <= threshold * 1.5) return 'medium';
-    return 'good';
-  };
-
-  const getDaysSinceUpdate = (dateString) => {
-    if (!dateString) return 0;
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffTime = now - date;
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (quantity <= 0) return 'out_of_stock';
+    if (quantity <= threshold) return 'low_stock';
+    return 'normal';
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'low': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'good': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'out_of_stock': return 'bg-red-500';
+      case 'low_stock': return 'bg-yellow-500';
+      case 'normal': return 'bg-green-500';
+      default: return 'bg-gray-500';
     }
   };
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'low': return 'Low Stock';
-      case 'medium': return 'Medium Stock';
-      case 'good': return 'Good Stock';
+      case 'out_of_stock': return 'Out of Stock';
+      case 'low_stock': return 'Low Stock';
+      case 'normal': return 'Normal';
       default: return 'Unknown';
     }
   };
 
-  const getCategories = () => {
-    const categories = [...new Set(stockData.map(item => item.category).filter(Boolean))];
-    return categories;
-  };
-
-  const getSuppliers = () => {
-    const suppliers = [...new Set(stockData.map(item => item.supplier_id).filter(Boolean))];
-    return suppliers;
-  };
-
-  const exportToCSV = async () => {
-    try {
-      setExporting(true);
-      
-      const csvData = filteredData.map(item => ({
-        'Item Name': item.item_name,
-        'Category': item.category,
-        'Current Quantity': item.current_quantity,
-        'Unit': item.unit,
-        'Unit Price': item.unit_price,
-        'Stock Value': item.stock_value,
-        'Reorder Threshold': item.reorder_threshold,
-        'Stock Status': getStatusText(item.stock_status),
-        'Days Since Update': item.days_since_update,
-        'Description': item.description
-      }));
-
-      const csvContent = [
-        Object.keys(csvData[0]).join(','),
-        ...csvData.map(row => Object.values(row).map(value => `"${value}"`).join(','))
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `stock-balance-${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-
-      toast.success('Stock balance exported successfully');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Failed to export data');
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const calculateTotals = () => {
-    const totalItems = filteredData.length;
-    const totalValue = filteredData.reduce((sum, item) => sum + item.stock_value, 0);
-    const lowStockItems = filteredData.filter(item => item.stock_status === 'low').length;
-    const averageValue = totalItems > 0 ? totalValue / totalItems : 0;
+    const totalIn = filteredData.reduce((sum, item) => sum + item.stock_in, 0);
+    const totalOut = filteredData.reduce((sum, item) => sum + item.stock_out, 0);
+    const closingBalance = filteredData.reduce((sum, item) => sum + item.closing_balance, 0);
+    
+    // Get unique units to show in summary
+    const units = [...new Set(filteredData.map(item => item.unit).filter(Boolean))];
+    const unitText = units.length === 1 ? units[0] : `${units.length} units`;
 
     return {
-      totalItems,
-      totalValue,
-      lowStockItems,
-      averageValue
+      totalIn,
+      totalOut,
+      closingBalance,
+      unitText,
+      itemCount: filteredData.length
     };
   };
 
   const totals = calculateTotals();
+
+  const handleApplyFilter = () => {
+    // TODO: Implement date range filtering
+    toast.success('Filter applied successfully');
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportExcel = () => {
+    const headers = ['Item', 'Unit', 'Opening', 'In', 'Out', 'Balance', 'Price', 'Value', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(item => [
+        `"${item.item_name || ''}"`,
+        `"${item.unit || ''}"`,
+        item.opening_balance,
+        item.stock_in,
+        item.stock_out,
+        item.closing_balance,
+        item.unit_price,
+        item.total_value,
+        `"${getStatusText(item.stock_status)}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `stock-balance-${fromDate}-to-${toDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Stock balance exported successfully');
+  };
 
   if (loading) {
     return (
@@ -225,154 +243,266 @@ const StockBalance = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                <BarChart3 className="h-8 w-8 text-blue-600" />
-                Stock Balance Report
+    <>
+      {/* Print Styles */}
+      <style jsx>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .printable-content, .printable-content * {
+            visibility: visible;
+          }
+          .printable-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .print-header {
+            margin-bottom: 20px;
+          }
+          .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+          }
+          .print-table th,
+          .print-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+          }
+          .print-table th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+          }
+        }
+        .printable-content {
+          display: none;
+        }
+        @media print {
+          .printable-content {
+            display: block !important;
+          }
+        }
+      `}</style>
+
+      {/* Print-Only Content */}
+      <div className="printable-content hidden">
+        {/* Print Header */}
+        <div className="print-header">
+          <div className="text-center mb-6">
+            {/* Company Logo */}
+            <div className="flex justify-center mb-4">
+              {companyInfo.logo_url ? (
+                <img
+                  src={`http://localhost:3001${companyInfo.logo_url}`}
+                  alt="Company Logo"
+                  className="h-16 w-auto object-contain"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div className={`w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center ${companyInfo.logo_url ? 'hidden' : ''}`}>
+                <span className="text-white font-bold text-xl">
+                  {companyInfo.company_name ? companyInfo.company_name.charAt(0).toUpperCase() : 'SP'}
+                </span>
+              </div>
+            </div>
+            
+            {/* Company Information */}
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                {companyInfo.company_name || 'CENTRE SAINT PAUL'}
               </h1>
-              <p className="text-gray-600 mt-1">
-                Real-time quantity tracking and stock value analysis
+              {companyInfo.tagline && (
+                <p className="text-lg text-blue-600 underline mb-2">{companyInfo.tagline}</p>
+              )}
+              {companyInfo.invoice_email && (
+                <p className="text-sm text-gray-700 mb-1">Email: {companyInfo.invoice_email}</p>
+              )}
+              {companyInfo.invoice_phone && (
+                <p className="text-sm text-gray-700 mb-1">Phone: {companyInfo.invoice_phone}</p>
+              )}
+              {companyInfo.tax_id && (
+                <p className="text-sm text-gray-700 mb-1">TIN/VAT Number: {companyInfo.tax_id}</p>
+              )}
+              {companyInfo.registration_number && (
+                <p className="text-sm text-gray-700 mb-4">Registration: {companyInfo.registration_number}</p>
+              )}
+              
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Inventory Table</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Period: {fromDate} to {toDate}
               </p>
             </div>
-            <button
-              onClick={exportToCSV}
-              disabled={exporting}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
-            >
-              {exporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              Export CSV
-            </button>
+          </div>
+        </div>
+
+        {/* Print Table */}
+        <table className="print-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th>Unit</th>
+              <th>Opening</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Balance</th>
+              <th>Price</th>
+              <th>Value</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredData.map((item, index) => (
+              <tr key={item.item_id}>
+                <td>{index + 1}</td>
+                <td>{item.item_name}</td>
+                <td>{item.unit}</td>
+                <td>{item.opening_balance.toFixed(2)} {item.unit}</td>
+                <td className="text-green-600 font-medium">{item.stock_in.toFixed(2)} {item.unit}</td>
+                <td className="text-red-600 font-medium">{item.stock_out.toFixed(2)} {item.unit}</td>
+                <td className="font-bold">{item.closing_balance.toFixed(2)} {item.unit}</td>
+                <td>{item.unit_price.toLocaleString()}</td>
+                <td>{item.total_value.toLocaleString()}</td>
+                <td>{getStatusText(item.stock_status)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Regular Web Content */}
+      <div className="min-h-screen bg-gray-50 no-print">
+          {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-6">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <BarChart3 className="h-8 w-8 text-blue-600" />
+              Store Inventory Balance
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {fromDate} to {toDate}
+            </p>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Package className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Items</p>
-                <p className="text-2xl font-bold text-gray-900">{totals.totalItems}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <BarChart3 className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Value</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  RWF {(totals.totalValue / 1000000).toFixed(1)}M
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
-                <p className="text-2xl font-bold text-gray-900">{totals.lowStockItems}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Average Value</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  RWF {(totals.averageValue / 1000).toFixed(1)}K
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow mb-6 p-6">
+        {/* Filter Report Section */}
+        <div className="bg-blue-50 rounded-lg p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter Report</h3>
           <div className="flex flex-wrap gap-4 items-center">
             <div className="flex items-center gap-2">
-              <Filter className="h-5 w-5 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">Filters:</span>
+              <Calendar className="h-5 w-5 text-gray-500" />
+              <label className="text-sm font-medium text-gray-700">FROM DATE</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Categories</option>
-              {getCategories().map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-gray-500" />
+              <label className="text-sm font-medium text-gray-700">TO DATE</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-            <select
-              value={supplierFilter}
-              onChange={(e) => setSupplierFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            <button
+              onClick={handleApplyFilter}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
-              <option value="all">All Suppliers</option>
-              {getSuppliers().map(supplier => (
-                <option key={supplier} value={supplier}>Supplier {supplier}</option>
-              ))}
-            </select>
+              <CheckCircle className="h-4 w-4" />
+              Apply
+            </button>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
             >
-              <option value="all">All Status</option>
-              <option value="low">Low Stock</option>
-              <option value="medium">Medium Stock</option>
-              <option value="good">Good Stock</option>
-            </select>
+              <Printer className="h-4 w-4" />
+              Print Table
+            </button>
+          </div>
+        </div>
 
-            <div className="flex-1 min-w-64">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search items..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">TOTAL IN</p>
+                <p className="text-3xl font-bold text-green-600">{totals.totalIn.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 mt-1">{totals.unitText}</p>
               </div>
+              <TrendingDown className="h-8 w-8 text-green-600" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">TOTAL OUT</p>
+                <p className="text-3xl font-bold text-red-600">{totals.totalOut.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 mt-1">{totals.unitText}</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-red-600" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">CLOSING BALANCE</p>
+                <p className="text-3xl font-bold text-gray-900">{totals.closingBalance.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 mt-1">{totals.unitText}</p>
+              </div>
+              <BarChart3 className="h-8 w-8 text-orange-600" />
             </div>
           </div>
         </div>
 
-        {/* Stock Balance Table */}
+        {/* Inventory Items Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Stock Balance ({filteredData.length} items)
-            </h3>
+          <div className="bg-blue-50 px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Inventory Items</h3>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search items..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={handleExportExcel}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Export Excel
+                </button>
+              </div>
+            </div>
           </div>
 
           {filteredData.length === 0 ? (
@@ -386,25 +516,31 @@ const StockBalance = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Item
+                      ITEM
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Category
+                      UNIT
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Current Quantity
+                      OPENING
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Unit Price
+                      IN
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Stock Value
+                      OUT
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                      BALANCE
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Last Updated
+                      PRICE
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      VALUE
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      STATUS
                     </th>
                   </tr>
                 </thead>
@@ -412,41 +548,38 @@ const StockBalance = () => {
                   {filteredData.map((item) => (
                     <tr key={item.item_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {item.item_name}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {item.description}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {item.current_quantity} {item.unit}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Threshold: {item.reorder_threshold}
+                        <div className="text-sm font-medium text-gray-900">
+                          {item.item_name}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        RWF {parseFloat(item.unit_price || 0).toLocaleString()}
+                        {item.unit}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.opening_balance.toFixed(2)} {item.unit}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                        {item.stock_in.toFixed(2)} {item.unit}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                        {item.stock_out.toFixed(2)} {item.unit}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                        RWF {item.stock_value.toLocaleString()}
+                        {item.closing_balance.toFixed(2)} {item.unit}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        RWF {item.unit_price.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        RWF {item.total_value.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.stock_status)}`}>
-                          {getStatusText(item.stock_status)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {item.days_since_update} days ago
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${getStatusColor(item.stock_status)}`}></div>
+                          <span className="text-sm text-gray-900">
+                            {getStatusText(item.stock_status)}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -455,8 +588,9 @@ const StockBalance = () => {
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
